@@ -17,7 +17,8 @@ from datetime import datetime
 from typing import Optional
 
 from fastapi import FastAPI, Request, Response, HTTPException, BackgroundTasks
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
@@ -40,6 +41,13 @@ log = logging.getLogger(__name__)
 app = FastAPI(title="MindMed API", version="3.0")
 gestor = GestorConversasMindMed()
 _scheduler_task = None
+
+# Serve arquivos estáticos (painel, logo, etc.)
+app.mount("/static", StaticFiles(directory="."), name="static")
+
+@app.get("/painel")
+async def painel():
+    return FileResponse("painel_mindmed.html")
 
 # Z-API
 ZAPI_INSTANCE_ID  = os.getenv("ZAPI_INSTANCE_ID", "")
