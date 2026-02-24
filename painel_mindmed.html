@@ -1,0 +1,821 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MindMed — Painel</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:            #071120;
+    --surface:       #0d1b2e;
+    --surface2:      #0a1628;
+    --border:        #1a2d44;
+    --green:         #00d084;
+    --green2:        #00a86b;
+    --green-glow:    rgba(0,208,132,0.15);
+    --green-border:  rgba(0,208,132,0.45);
+    --red:           #ff4757;
+    --red-dim:       rgba(255,71,87,0.1);
+    --yellow:        #f0c040;
+    --yellow-dim:    rgba(240,192,64,0.1);
+    --purple:        #a855f7;
+    --purple-dim:    rgba(168,85,247,0.1);
+    --text:          #ffffff;
+    --text-muted:    #4a6080;
+    --text-dim:      #7a9ab8;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', -apple-system, sans-serif;
+    min-height: 100vh;
+  }
+
+  /* ── HEADER ── */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 48px;
+    height: 72px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(7,17,32,0.98);
+    backdrop-filter: blur(16px);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .logo img {
+    height: 156px;
+    filter: brightness(0) invert(1);
+  }
+  .header-label {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+  .badge-live {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--green);
+    background: var(--green-glow);
+    border: 1px solid var(--green-border);
+    padding: 7px 16px;
+    border-radius: 100px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .dot-pulse {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--green);
+    animation: pulse-dot 2s ease-in-out infinite;
+  }
+  @keyframes pulse-dot {
+    0%,100% { opacity:1; box-shadow:0 0 0 0 rgba(0,208,132,0.5); }
+    50%      { opacity:0.8; box-shadow:0 0 0 6px rgba(0,208,132,0); }
+  }
+
+  /* ── STATS ── */
+  .stats-bar {
+    display: grid;
+    grid-template-columns: repeat(4,1fr);
+    border-bottom: 1px solid var(--border);
+  }
+  .stat {
+    padding: 28px 40px;
+    border-right: 1px solid var(--border);
+    position: relative;
+    overflow: hidden;
+  }
+  .stat:last-child { border-right: none; }
+  .stat-number {
+    font-size: 3rem;
+    font-weight: 900;
+    line-height: 1;
+    color: var(--green);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+  }
+  .stat-label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--text-muted);
+    margin-top: 6px;
+  }
+  .stat-sub {
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    margin-top: 3px;
+  }
+  .stat::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--green) 0%, transparent 100%);
+    opacity: 0.3;
+  }
+
+  /* ── MAIN ── */
+  main {
+    padding: 40px 48px;
+    max-width: 1440px;
+    margin: 0 auto;
+  }
+
+  /* ── PAGE TITLE ── */
+  .page-title {
+    margin-bottom: 32px;
+  }
+  .page-title h1 {
+    font-size: 1.75rem;
+    font-weight: 900;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+  }
+  .page-title h1 span { color: var(--green); }
+  .page-title p {
+    color: var(--text-dim);
+    font-size: 0.85rem;
+    margin-top: 6px;
+  }
+
+  /* ── TOOLBAR ── */
+  .toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 24px;
+  }
+  .tabs {
+    display: flex;
+    gap: 2px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 4px;
+  }
+  .tab {
+    padding: 8px 18px;
+    border-radius: 7px;
+    border: none;
+    background: none;
+    color: var(--text-muted);
+    font-family: 'Inter', sans-serif;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    letter-spacing: 0.02em;
+  }
+  .tab.active {
+    background: var(--surface2);
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+  .tab-dot { width:6px; height:6px; border-radius:50%; }
+  .tab-count {
+    background: rgba(255,255,255,0.07);
+    border-radius: 20px;
+    padding: 1px 7px;
+    font-size: 0.7rem;
+    color: var(--text-dim);
+  }
+  .tab.active .tab-count {
+    background: var(--green-glow);
+    color: var(--green);
+  }
+  .btn-refresh {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    padding: 9px 20px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.8rem;
+    font-weight: 600;
+    transition: all 0.15s;
+    letter-spacing: 0.03em;
+  }
+  .btn-refresh:hover { border-color: var(--green-border); color: var(--green); }
+
+  /* ── CARDS GRID ── */
+  .cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 20px;
+  }
+
+  /* ── CARD ── */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 24px;
+    transition: transform 0.2s, box-shadow 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+  .card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+  }
+
+  /* Card com borda verde brilhante — igual ao site */
+  .card.paused {
+    border-color: var(--green-border);
+    box-shadow: 0 0 0 1px rgba(0,208,132,0.1), inset 0 0 30px rgba(0,208,132,0.03);
+  }
+  .card.paused::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--green), transparent);
+  }
+  .card.trial {
+    border-color: rgba(240,192,64,0.4);
+    box-shadow: 0 0 0 1px rgba(240,192,64,0.08);
+  }
+  .card.fechar {
+    border-color: rgba(168,85,247,0.4);
+    box-shadow: 0 0 0 1px rgba(168,85,247,0.08);
+  }
+
+  .card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 18px;
+  }
+
+  /* Número grande no canto — estilo do site */
+  .card-num {
+    font-size: 2rem;
+    font-weight: 900;
+    line-height: 1;
+    color: var(--green);
+    opacity: 0.15;
+    position: absolute;
+    top: 14px;
+    right: 18px;
+    letter-spacing: -0.04em;
+    pointer-events: none;
+  }
+
+  .avatar {
+    width: 44px; height: 44px;
+    border-radius: 11px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    font-weight: 800;
+    color: var(--green);
+    letter-spacing: -0.02em;
+  }
+
+  .status-chip {
+    padding: 5px 12px;
+    border-radius: 100px;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .chip-paused  { background:rgba(0,208,132,0.1);   color:var(--green);  border:1px solid var(--green-border); }
+  .chip-trial   { background:var(--yellow-dim);      color:var(--yellow); border:1px solid rgba(240,192,64,0.3); }
+  .chip-active  { background:rgba(74,96,128,0.15);   color:var(--text-dim); border:1px solid var(--border); }
+  .chip-fechar  { background:var(--purple-dim);      color:var(--purple); border:1px solid rgba(168,85,247,0.3); }
+  .chip-done    { background:rgba(255,71,87,0.1);    color:var(--red);    border:1px solid rgba(255,71,87,0.3); }
+
+  .card-name {
+    font-size: 1.05rem;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    margin-bottom: 3px;
+  }
+  .card-phone {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.03em;
+  }
+
+  .card-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 14px 0;
+  }
+  .tag {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 0.72rem;
+    color: var(--text-dim);
+    font-weight: 500;
+  }
+
+  .card-time {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .card-actions { display:flex; gap:8px; }
+
+  .btn-main {
+    flex: 1;
+    padding: 11px;
+    border-radius: 9px;
+    cursor: pointer;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.82rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    transition: all 0.15s;
+    letter-spacing: 0.02em;
+    border: 1px solid var(--green-border);
+    background: var(--green-glow);
+    color: var(--green);
+  }
+  .btn-main:hover:not(:disabled) {
+    background: var(--green);
+    color: #000;
+    box-shadow: 0 4px 20px rgba(0,208,132,0.3);
+  }
+  .btn-main:disabled { opacity:0.25; cursor:default; }
+
+  .btn-sec {
+    padding: 11px 14px;
+    border-radius: 9px;
+    cursor: pointer;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.82rem;
+    font-weight: 600;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    transition: all 0.15s;
+  }
+  .btn-sec:hover { border-color:var(--red); color:var(--red); }
+
+  /* ── EMPTY STATE ── */
+  .empty {
+    grid-column: 1/-1;
+    text-align: center;
+    padding: 80px 20px;
+  }
+  .empty-icon { font-size: 3rem; margin-bottom: 16px; }
+  .empty-title {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--text-dim);
+    margin-bottom: 6px;
+  }
+  .empty-sub { font-size: 0.82rem; color: var(--text-muted); }
+
+  /* ── MODAL ── */
+  .overlay {
+    position: fixed; inset:0;
+    background: rgba(0,0,0,0.75);
+    backdrop-filter: blur(6px);
+    z-index: 200;
+    display: flex; align-items:center; justify-content:center;
+    opacity:0; pointer-events:none;
+    transition: opacity 0.2s;
+  }
+  .overlay.show { opacity:1; pointer-events:all; }
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--green-border);
+    border-radius: 16px;
+    padding: 32px;
+    width: 420px;
+    max-width: 92vw;
+    transform: scale(0.95);
+    transition: transform 0.2s;
+    box-shadow: 0 0 60px rgba(0,208,132,0.1);
+  }
+  .overlay.show .modal { transform: scale(1); }
+  .modal-icon { font-size: 2rem; margin-bottom: 14px; }
+  .modal-title {
+    font-size: 1.1rem;
+    font-weight: 800;
+    margin-bottom: 8px;
+    letter-spacing: -0.01em;
+  }
+  .modal-sub {
+    font-size: 0.83rem;
+    color: var(--text-dim);
+    line-height: 1.6;
+    margin-bottom: 24px;
+  }
+  .modal-actions { display:flex; gap:10px; }
+  .btn-confirm {
+    flex:1; padding:12px;
+    background: var(--green);
+    border: none;
+    border-radius: 9px;
+    color: #000;
+    font-family: 'Inter', sans-serif;
+    font-weight: 800;
+    font-size: 0.88rem;
+    cursor: pointer;
+    letter-spacing: 0.02em;
+    transition: opacity 0.15s;
+  }
+  .btn-confirm:hover { opacity:0.85; }
+  .btn-cancel {
+    padding: 12px 20px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    color: var(--text-muted);
+    font-family: 'Inter', sans-serif;
+    font-size: 0.88rem;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .btn-cancel:hover { border-color:#444; color:var(--text); }
+
+  /* ── TOAST ── */
+  .toast {
+    position: fixed;
+    bottom: 28px; right: 28px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 20px;
+    font-size: 0.83rem;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    opacity: 0;
+    transform: translateY(20px);
+    transition: all 0.3s cubic-bezier(0.34,1.56,0.64,1);
+    z-index: 300;
+    max-width: 320px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  }
+  .toast.show { opacity:1; transform:translateY(0); }
+  .toast.success { border-color: var(--green-border); }
+  .toast.error   { border-color: rgba(255,71,87,0.4); }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .spinner {
+    width:13px; height:13px;
+    border: 2px solid rgba(0,208,132,0.25);
+    border-top-color: var(--green);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    display: inline-block;
+  }
+
+  @media (max-width:768px) {
+    header { padding: 0 20px; }
+    .header-label { display:none; }
+    main { padding: 24px 20px; }
+    .stats-bar { grid-template-columns: repeat(2,1fr); }
+    .stat { padding: 20px 24px; }
+    .stat-number { font-size: 2.2rem; }
+  }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header>
+  <div class="logo">
+    <img src="logo.png" alt="MindMed">
+  </div>
+  <div class="header-label">Painel</div>
+
+</header>
+
+<!-- STATS BAR -->
+<div class="stats-bar">
+  <div class="stat">
+    <div class="stat-number" id="s-pausa">—</div>
+    <div class="stat-label">Em pausa</div>
+    <div class="stat-sub">Aguardando Davi</div>
+  </div>
+  <div class="stat">
+    <div class="stat-number" style="color:var(--yellow)" id="s-trial">—</div>
+    <div class="stat-label">Trial ativo</div>
+    <div class="stat-sub">Testando plataforma</div>
+  </div>
+  <div class="stat">
+    <div class="stat-number" style="color:var(--purple)" id="s-fechar">—</div>
+    <div class="stat-label">Prontos p/ fechar</div>
+    <div class="stat-sub">Alta intenção de compra</div>
+  </div>
+  <div class="stat">
+    <div class="stat-number" style="color:var(--text-dim)" id="s-total">—</div>
+    <div class="stat-label">Total de leads</div>
+    <div class="stat-sub">Todos os contatos</div>
+  </div>
+</div>
+
+<!-- MAIN -->
+<main>
+  <div class="page-title">
+    <h1>Atendimentos <span>em tempo real</span></h1>
+    <p>Gerencie as conversas do agente e retome o atendimento quando necessário.</p>
+  </div>
+
+  <div class="toolbar">
+    <div class="tabs">
+      <button class="tab active" onclick="filtrar('todos',this)">
+        <span class="tab-dot" style="background:#4a6080"></span>
+        Todos <span class="tab-count" id="tc-todos">0</span>
+      </button>
+      <button class="tab" onclick="filtrar('PASSAR_HUMANO',this)">
+        <span class="tab-dot" style="background:var(--green)"></span>
+        Em pausa <span class="tab-count" id="tc-pausa">0</span>
+      </button>
+      <button class="tab" onclick="filtrar('ACESSO_LIBERADO',this)">
+        <span class="tab-dot" style="background:var(--yellow)"></span>
+        Trial <span class="tab-count" id="tc-trial">0</span>
+      </button>
+      <button class="tab" onclick="filtrar('CONTINUAR',this)">
+        <span class="tab-dot" style="background:#4a6080"></span>
+        Agente <span class="tab-count" id="tc-ativo">0</span>
+      </button>
+    </div>
+    <button class="btn-refresh" onclick="carregarDados()">
+      <span id="refresh-icon">↻</span> Atualizar
+    </button>
+  </div>
+
+  <div class="cards-grid" id="grid"></div>
+</main>
+
+<!-- MODAL -->
+<div class="overlay" id="modal">
+  <div class="modal">
+    <div class="modal-icon" id="modal-icon">▶</div>
+    <div class="modal-title" id="modal-title">Retomar atendimento?</div>
+    <div class="modal-sub" id="modal-sub">O agente voltará a responder este contato.</div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="fecharModal()">Cancelar</button>
+      <button class="btn-confirm" id="modal-btn">Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast">
+  <span id="toast-icon"></span>
+  <span id="toast-msg"></span>
+</div>
+
+<script>
+  // ══════════════════════════════════════════
+  // CONFIGURAÇÃO — preencha suas credenciais
+  // ══════════════════════════════════════════
+  const API_URL        = 'http://localhost:8000';
+  const SUPABASE_URL   = 'https://ilfbfkjrqltdjehgpzmv.supabase.co';
+  const SUPABASE_KEY   = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlsZmJma2pycWx0ZGplaGdwem12Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE3NzE1NTYsImV4cCI6MjA4NzM0NzU1Nn0.EkCIwO8cPBRaaGacCCYlA9eP6h0mzzuTNPviuXTs868'; 
+
+  let leads = [];
+  let filtroAtual = 'todos';
+
+  // ══════════════════════════════════════════
+  // CARREGAR DADOS
+  // ══════════════════════════════════════════
+  async function carregarDados() {
+    const icon = document.getElementById('refresh-icon');
+    icon.innerHTML = '<span class="spinner"></span>';
+    try {
+      const r = await fetch(
+        SUPABASE_URL + '/rest/v1/crm_leads?select=*&order=updated_at.desc',
+        { headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY } }
+      );
+      if (!r.ok) throw new Error();
+      leads = await r.json();
+    } catch {
+      leads = exemploLeads();
+    }
+    atualizarStats();
+    renderCards(filtroAtual);
+    icon.innerHTML = '↻';
+  }
+
+  function exemploLeads() {
+    return [
+      { telefone:'553284643903', nome:'Pedro Alves', fase:'internato', tag_crm:'🔴 FECHAR', status_conversa:'PASSAR_HUMANO', maior_dificuldade:'Memorizar conteúdo', presta_residencia_esse_ano:true, updated_at: new Date().toISOString() },
+      { telefone:'5511987651234', nome:'Ana Costa', fase:'ciclo_clinico', tag_crm:'🟢 TRIAL_ATIVO', status_conversa:'ACESSO_LIBERADO', maior_dificuldade:'Clínica Médica', presta_residencia_esse_ano:false, updated_at: new Date(Date.now()-3600000).toISOString() },
+      { telefone:'5521976543210', nome:'Carlos Lima', fase:'formado', tag_crm:'🔵 EM_ATENDIMENTO', status_conversa:'CONTINUAR', maior_dificuldade:'Pediatria', presta_residencia_esse_ano:true, updated_at: new Date(Date.now()-7200000).toISOString() },
+      { telefone:'5531988887777', nome:'Mariana Souza', fase:'internato', tag_crm:'🔴 FECHAR', status_conversa:'PASSAR_HUMANO', maior_dificuldade:'Cirurgia', presta_residencia_esse_ano:true, updated_at: new Date(Date.now()-1800000).toISOString() },
+    ];
+  }
+
+  // ══════════════════════════════════════════
+  // STATS
+  // ══════════════════════════════════════════
+  function atualizarStats() {
+    const pausa  = leads.filter(l => l.status_conversa === 'PASSAR_HUMANO').length;
+    const trial  = leads.filter(l => ['ACESSO_LIBERADO','AGUARDAR_FOLLOW_UP'].includes(l.status_conversa)).length;
+    const fechar = leads.filter(l => l.tag_crm && l.tag_crm.includes('FECHAR')).length;
+    document.getElementById('s-pausa').textContent  = pausa;
+    document.getElementById('s-trial').textContent  = trial;
+    document.getElementById('s-fechar').textContent = fechar;
+    document.getElementById('s-total').textContent  = leads.length;
+  }
+
+  // ══════════════════════════════════════════
+  // TABS + RENDER
+  // ══════════════════════════════════════════
+  function filtrar(status, btn) {
+    filtroAtual = status;
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    btn.classList.add('active');
+    renderCards(status);
+  }
+
+  function atualizarContadores() {
+    document.getElementById('tc-todos').textContent  = leads.length;
+    document.getElementById('tc-pausa').textContent  = leads.filter(l=>l.status_conversa==='PASSAR_HUMANO').length;
+    document.getElementById('tc-trial').textContent  = leads.filter(l=>['ACESSO_LIBERADO','AGUARDAR_FOLLOW_UP'].includes(l.status_conversa)).length;
+    document.getElementById('tc-ativo').textContent  = leads.filter(l=>l.status_conversa==='CONTINUAR').length;
+  }
+
+  function renderCards(filtro) {
+    atualizarContadores();
+    const grid = document.getElementById('grid');
+    const lista = filtro === 'todos' ? leads : leads.filter(l => l.status_conversa === filtro);
+
+    if (!lista.length) {
+      grid.innerHTML = '<div class="empty"><div class="empty-icon">✅</div><div class="empty-title">Nenhum atendimento aqui</div><div class="empty-sub">Tudo em ordem por enquanto.</div></div>';
+      return;
+    }
+    grid.innerHTML = lista.map((l, i) => cardHTML(l, i + 1)).join('');
+  }
+
+  function cardHTML(l, idx) {
+    const nome   = l.nome || 'Desconhecido';
+    const ini    = nome.charAt(0).toUpperCase();
+    const status = l.status_conversa || 'CONTINUAR';
+    const tag    = l.tag_crm || '';
+    const tempo  = fmtTempo(l.updated_at);
+    const fase   = fmtFase(l.fase);
+
+    let cardCls = 'active', chipCls = 'chip-active', chipLabel = 'Em andamento';
+    if (status === 'PASSAR_HUMANO')                               { cardCls='paused'; chipCls='chip-paused'; chipLabel='Em pausa'; }
+    else if (['ACESSO_LIBERADO','AGUARDAR_FOLLOW_UP'].includes(status)) { cardCls='trial';  chipCls='chip-trial';  chipLabel='Trial ativo'; }
+    else if (tag.includes('FECHAR'))                              { cardCls='fechar'; chipCls='chip-fechar'; chipLabel='Fechar'; }
+    else if (status.startsWith('FINALIZADO'))                     { cardCls='';       chipCls='chip-done';   chipLabel='Finalizado'; }
+
+    const podRetomar = status === 'PASSAR_HUMANO';
+
+    return `
+    <div class="card ${cardCls}">
+      <div class="card-num">${String(idx).padStart(2,'0')}</div>
+      <div class="card-header">
+        <div class="avatar">${ini}</div>
+        <span class="status-chip ${chipCls}">${chipLabel}</span>
+      </div>
+      <div class="card-name">${nome}</div>
+      <div class="card-phone">+${l.telefone}</div>
+      <div class="card-tags">
+        ${fase ? '<span class="tag">📚 '+fase+'</span>' : ''}
+        ${l.maior_dificuldade ? '<span class="tag">⚡ '+l.maior_dificuldade+'</span>' : ''}
+        ${l.presta_residencia_esse_ano ? '<span class="tag">📖 Prova esse ano</span>' : ''}
+      </div>
+      <div class="card-time">🕐 Atualizado ${tempo}</div>
+      <div class="card-actions">
+        <button class="btn-main" ${podRetomar?'':'disabled'} onclick="confirmar('retomar','${l.telefone}','${nome}')">
+          ▶ Retomar agente
+        </button>
+        <button class="btn-sec" onclick="confirmar('finalizar','${l.telefone}','${nome}')">✕</button>
+      </div>
+    </div>`;
+  }
+
+  // ══════════════════════════════════════════
+  // AÇÕES
+  // ══════════════════════════════════════════
+  let acao = null;
+
+  function confirmar(tipo, tel, nome) {
+    acao = { tipo, tel, nome };
+    if (tipo === 'retomar') {
+      document.getElementById('modal-icon').textContent  = '▶';
+      document.getElementById('modal-title').textContent = 'Retomar atendimento?';
+      document.getElementById('modal-sub').textContent   = 'O agente voltará a responder ' + nome + ' automaticamente.';
+      document.getElementById('modal-btn').textContent   = '▶ Retomar agente';
+      document.getElementById('modal-btn').style.background = 'var(--green)';
+      document.getElementById('modal-btn').style.color      = '#000';
+    } else {
+      document.getElementById('modal-icon').textContent  = '✕';
+      document.getElementById('modal-title').textContent = 'Finalizar conversa?';
+      document.getElementById('modal-sub').textContent   = 'A conversa com ' + nome + ' será encerrada. O agente não responderá mais.';
+      document.getElementById('modal-btn').textContent   = 'Finalizar';
+      document.getElementById('modal-btn').style.background = 'var(--red)';
+      document.getElementById('modal-btn').style.color      = '#fff';
+    }
+    document.getElementById('modal-btn').onclick = executarAcao;
+    document.getElementById('modal').classList.add('show');
+  }
+
+  function fecharModal() {
+    document.getElementById('modal').classList.remove('show');
+  }
+
+  async function executarAcao() {
+    fecharModal();
+    if (!acao) return;
+    const { tipo, tel, nome } = acao;
+    const novoStatus = tipo === 'retomar' ? 'CONTINUAR' : 'FINALIZADO_SUCESSO';
+
+    try {
+      // Tenta endpoint local primeiro
+      const r = await fetch(API_URL + '/retomar/' + tel, { method: 'POST' });
+      if (!r.ok) throw new Error();
+    } catch {
+      // Fallback: atualiza direto no Supabase
+      await fetch(SUPABASE_URL + '/rest/v1/conversas?telefone=eq.' + tel, {
+        method: 'PATCH',
+        headers: {
+          apikey: SUPABASE_KEY,
+          Authorization: 'Bearer ' + SUPABASE_KEY,
+          'Content-Type': 'application/json',
+          Prefer: 'return=minimal'
+        },
+        body: JSON.stringify({ status_conversa: novoStatus, updated_at: new Date().toISOString() })
+      });
+    }
+
+    const msg = tipo === 'retomar'
+      ? '✅ Agente retomado para ' + nome
+      : '✅ Conversa com ' + nome + ' finalizada';
+    toast('success', msg);
+    setTimeout(carregarDados, 800);
+  }
+
+  // ══════════════════════════════════════════
+  // HELPERS
+  // ══════════════════════════════════════════
+  function fmtTempo(iso) {
+    if (!iso) return '—';
+    const min = Math.floor((Date.now() - new Date(iso)) / 60000);
+    if (min < 1)  return 'agora mesmo';
+    if (min < 60) return 'há ' + min + 'min';
+    const h = Math.floor(min/60);
+    if (h < 24) return 'há ' + h + 'h';
+    return 'há ' + Math.floor(h/24) + 'd';
+  }
+
+  function fmtFase(f) {
+    return ({ciclo_basico:'Ciclo Básico',ciclo_clinico:'Ciclo Clínico',internato:'Internato',formado:'Formado',residencia:'Residência'})[f] || f || '';
+  }
+
+  function toast(type, msg) {
+    const t = document.getElementById('toast');
+    document.getElementById('toast-icon').textContent = type==='success' ? '✅' : '❌';
+    document.getElementById('toast-msg').textContent  = msg;
+    t.className = 'toast ' + type + ' show';
+    setTimeout(() => t.classList.remove('show'), 3500);
+  }
+
+  // ══════════════════════════════════════════
+  // INIT
+  // ══════════════════════════════════════════
+  carregarDados();
+  setInterval(carregarDados, 30000);
+</script>
+</body>
+</html>
