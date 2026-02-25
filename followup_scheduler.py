@@ -56,12 +56,37 @@ def mensagem_followup_1(nome: str) -> str:
 def mensagem_followup_2(nome: str) -> str:
     nome_str = nome if nome else ""
     prefixo = f"{nome_str}, " if nome_str else ""
-    return f"{prefixo}seu acesso de 24h tá acabando em breve! ⏰\nVocê conseguiu testar? O que achou?\nQualquer dúvida, tô aqui!"
+    return f"{prefixo}seu acesso de 48h tá acabando em breve! ⏰\nVocê conseguiu testar? O que achou?\nQualquer dúvida, tô aqui!"
 
 def mensagem_followup_3(nome: str) -> str:
     nome_str = nome if nome else ""
     prefixo = f"{nome_str}, " if nome_str else ""
     return f"{prefixo}tudo bem? 💪\nSe você tiver interesse em continuar com a MindMed, é só chamar. Tô por aqui!"
+
+
+# ============================================================================
+# MENSAGENS DE REENGAJAMENTO (leads que sumiram sem testar)
+# ============================================================================
+
+# Timings do reengajamento (em horas) para status CONTINUAR
+REENGAJ_1_HORAS = int(os.getenv("REENGAJ_1_HORAS", "48"))   # 2 dias
+REENGAJ_2_HORAS = int(os.getenv("REENGAJ_2_HORAS", "96"))   # 4 dias
+REENGAJ_3_HORAS = int(os.getenv("REENGAJ_3_HORAS", "144"))  # 6 dias
+
+def mensagem_reengaj_1(nome: str) -> str:
+    nome_str = nome if nome else ""
+    prefixo = f"Oi {nome_str}! " if nome_str else "Oi! "
+    return f"{prefixo}Ficou alguma dúvida sobre a MindMed? Pode perguntar à vontade 😊"
+
+def mensagem_reengaj_2(nome: str) -> str:
+    nome_str = nome if nome else ""
+    prefixo = f"{nome_str}, " if nome_str else ""
+    return f"{prefixo}que tal testar a plataforma por 48h de graça? Sem precisar de cartão 😄\nSó me avisa que libero seu acesso!"
+
+def mensagem_reengaj_3(nome: str) -> str:
+    nome_str = nome if nome else ""
+    prefixo = f"{nome_str}, " if nome_str else ""
+    return f"{prefixo}tudo bem? 🤙\nSe um dia quiser conhecer a MindMed, é só chamar. Boa sorte nos estudos!"
 
 
 # ============================================================================
@@ -221,6 +246,88 @@ async def _finalizar_inativo(telefone: str, nome: str):
 
 
 # ============================================================================
+# LÓGICA DE REENGAJAMENTO (leads CONTINUAR que sumiram sem testar)
+# ============================================================================
+
+async def processar_reengajamento():
+    """
+    Verifica leads que estão com status CONTINUAR há muito tempo sem responder.
+    Envia mensagens de reengajamento para tentar recuperá-los.
+    """
+    log.info("🔍 Verificando reengajamentos pendentes...")
+
+    try:
+        resultado = (
+            supabase.table("conversas")
+            .select("*")
+            .eq("status_conversa", "CONTINUAR")
+            .execute()
+        )
+
+        conversas = resultado.data or []
+        elegiveis = 0
+
+        for conversa in conversas:
+            telefone   = conversa.get("telefone", "")
+            nome       = conversa.get("nome_aluno", "")
+            updated_at = conversa.get("updated_at", "")
+            reengaj_n  = conversa.get("contador_reengajamento", 0) or 0
+
+            if not telefone or not updated_at:
+                continue
+
+            horas = calcular_horas_sem_resposta(updated_at)
+
+            # Só age se ficou parado há pelo menos 48h
+            if horas < REENGAJ_1_HORAS:
+                continue
+
+            elegiveis += 1
+
+            if reengaj_n == 0 and horas >= REENGAJ_1_HORAS:
+                await _enviar_reengajamento(conversa, 1, mensagem_reengaj_1(nome))
+
+            elif reengaj_n == 1 and horas >= REENGAJ_2_HORAS:
+                await _enviar_reengajamento(conversa, 2, mensagem_reengaj_2(nome))
+
+            elif reengaj_n == 2 and horas >= REENGAJ_3_HORAS:
+                await _enviar_reengajamento(conversa, 3, mensagem_reengaj_3(nome))
+                await _finalizar_inativo(telefone, nome)
+
+        log.info(f"📋 {elegiveis} lead(s) elegível(eis) para reengajamento")
+
+    except Exception as e:
+        log.error(f"❌ Erro ao processar reengajamento: {e}")
+
+
+async def _enviar_reengajamento(conversa: dict, numero: int, mensagem: str):
+    """Envia mensagem de reengajamento e atualiza contador no Supabase."""
+    telefone = conversa.get("telefone")
+    nome     = conversa.get("nome_aluno", "")
+
+    log.info(f"📤 Reengajamento {numero} → {telefone} ({nome})")
+
+    enviado = await enviar_whatsapp(telefone, mensagem)
+
+    if enviado:
+        historico = conversa.get("historico", []) or []
+        historico.append({
+            "role": "assistant",
+            "content": mensagem,
+            "reengajamento": numero,
+            "enviado_em": datetime.now(timezone.utc).isoformat()
+        })
+
+        supabase.table("conversas").update({
+            "contador_reengajamento": numero,
+            "historico": historico,
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        }).eq("telefone", telefone).execute()
+
+        log.info(f"✅ Reengajamento {numero} registrado para {telefone}")
+
+
+# ============================================================================
 # LOOP PRINCIPAL
 # ============================================================================
 
@@ -238,6 +345,11 @@ async def iniciar_scheduler():
             await processar_followups()
         except Exception as e:
             log.error(f"❌ Erro no loop do scheduler: {e}")
+
+        try:
+            await processar_reengajamento()
+        except Exception as e:
+            log.error(f"❌ Erro no loop de reengajamento: {e}")
 
         await asyncio.sleep(INTERVALO_VERIFICACAO)
 
