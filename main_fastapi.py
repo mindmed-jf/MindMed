@@ -184,7 +184,7 @@ def dividir_mensagem(texto: str) -> list:
 def calcular_delay(texto: str) -> float:
     """Calcula delay proporcional ao tamanho do texto. Min 1.5s, max 5s."""
     palavras = len(texto.split())
-    return min(max(1.5 + (palavras * 0.08), 1.5), 5.0)
+    return min(max(3.0 + (palavras * 0.12), 3.0), 8.0)
 
 
 async def enviar_mensagem_zapi(telefone: str, texto: str):
