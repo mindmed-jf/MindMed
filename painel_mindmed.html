@@ -805,18 +805,19 @@
       if (tipo === 'retomar') {
         const novoStatus = 'CONTINUAR';
 
-        // Atualiza conversas (tem updated_at)
-        await fetch(SUPABASE_URL + '/rest/v1/conversas?telefone=eq.' + tel, {
+        // Atualiza tabela leads (tabela real por trás da view crm_leads)
+        const rL = await fetch(SUPABASE_URL + '/rest/v1/leads?telefone=eq.' + tel, {
           method: 'PATCH',
           headers,
           body: JSON.stringify({ status_conversa: novoStatus, updated_at: new Date().toISOString() })
         });
+        if (!rL.ok) throw new Error('Erro ao atualizar leads: ' + rL.status);
 
-        // Atualiza crm_leads — SEM updated_at (coluna não existe nessa tabela)
-        await fetch(SUPABASE_URL + '/rest/v1/crm_leads?telefone=eq.' + tel, {
+        // Atualiza tabela conversas
+        await fetch(SUPABASE_URL + '/rest/v1/conversas?telefone=eq.' + tel, {
           method: 'PATCH',
           headers,
-          body: JSON.stringify({ status_conversa: novoStatus })
+          body: JSON.stringify({ status_conversa: novoStatus, updated_at: new Date().toISOString() })
         });
 
         toast('success', '✅ Agente retomado para ' + nome);
@@ -825,18 +826,19 @@
       } else if (tipo === 'finalizar') {
         const novoStatus = 'FINALIZADO_SUCESSO';
 
-        // Atualiza conversas (tem updated_at)
-        await fetch(SUPABASE_URL + '/rest/v1/conversas?telefone=eq.' + tel, {
+        // Atualiza tabela leads (tabela real por trás da view crm_leads)
+        const rL = await fetch(SUPABASE_URL + '/rest/v1/leads?telefone=eq.' + tel, {
           method: 'PATCH',
           headers,
           body: JSON.stringify({ status_conversa: novoStatus, updated_at: new Date().toISOString() })
         });
+        if (!rL.ok) throw new Error('Erro ao atualizar leads: ' + rL.status);
 
-        // Atualiza crm_leads — SEM updated_at
-        await fetch(SUPABASE_URL + '/rest/v1/crm_leads?telefone=eq.' + tel, {
+        // Atualiza tabela conversas
+        await fetch(SUPABASE_URL + '/rest/v1/conversas?telefone=eq.' + tel, {
           method: 'PATCH',
           headers,
-          body: JSON.stringify({ status_conversa: novoStatus })
+          body: JSON.stringify({ status_conversa: novoStatus, updated_at: new Date().toISOString() })
         });
 
         toast('success', '✅ Conversa com ' + nome + ' finalizada');
@@ -844,8 +846,8 @@
       // ── EXCLUIR ───────────────────────────────
       } else if (tipo === 'excluir') {
 
-        // Deleta de crm_leads
-        const r1 = await fetch(SUPABASE_URL + '/rest/v1/crm_leads?telefone=eq.' + tel, {
+        // Deleta da tabela leads (tabela real — crm_leads é só uma view)
+        const r1 = await fetch(SUPABASE_URL + '/rest/v1/leads?telefone=eq.' + tel, {
           method: 'DELETE',
           headers
         });
@@ -856,7 +858,7 @@
           headers
         });
 
-        if (!r1.ok && r1.status !== 404) throw new Error('Erro ao excluir crm_leads: ' + r1.status);
+        if (!r1.ok && r1.status !== 404) throw new Error('Erro ao excluir leads: ' + r1.status);
         if (!r2.ok && r2.status !== 404) throw new Error('Erro ao excluir conversas: ' + r2.status);
 
         // Remove o card da tela imediatamente sem precisar recarregar
