@@ -241,8 +241,6 @@
     transform: translateY(-2px);
     box-shadow: 0 8px 32px rgba(0,0,0,0.3);
   }
-
-  /* Card com borda verde brilhante — igual ao site */
   .card.paused {
     border-color: var(--green-border);
     box-shadow: 0 0 0 1px rgba(0,208,132,0.1), inset 0 0 30px rgba(0,208,132,0.03);
@@ -270,7 +268,6 @@
     margin-bottom: 18px;
   }
 
-  /* Número grande no canto — estilo do site */
   .card-num {
     font-size: 2rem;
     font-weight: 900;
@@ -377,6 +374,7 @@
   }
   .btn-main:disabled { opacity:0.25; cursor:default; }
 
+  /* Botão finalizar (X) */
   .btn-sec {
     padding: 11px 14px;
     border-radius: 9px;
@@ -390,6 +388,29 @@
     transition: all 0.15s;
   }
   .btn-sec:hover { border-color:var(--red); color:var(--red); }
+
+  /* Botão excluir (lixeira) — vermelho */
+  .btn-del {
+    padding: 11px 14px;
+    border-radius: 9px;
+    cursor: pointer;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.88rem;
+    font-weight: 600;
+    background: rgba(255,71,87,0.07);
+    border: 1px solid rgba(255,71,87,0.25);
+    color: var(--red);
+    transition: all 0.15s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .btn-del:hover {
+    background: var(--red);
+    color: #fff;
+    border-color: var(--red);
+    box-shadow: 0 4px 16px rgba(255,71,87,0.3);
+  }
 
   /* ── EMPTY STATE ── */
   .empty {
@@ -522,7 +543,6 @@
     <img src="/static/logo.png" alt="MindMed">
   </div>
   <div class="header-label">Painel</div>
-
 </header>
 
 <!-- STATS BAR -->
@@ -604,11 +624,11 @@
 
 <script>
   // ══════════════════════════════════════════
-  // CONFIGURAÇÃO — preencha suas credenciais
+  // CONFIGURAÇÃO
   // ══════════════════════════════════════════
-  const API_URL        = 'http://localhost:8000';
-  const SUPABASE_URL   = 'https://ilfbfkjrqltdjehgpzmv.supabase.co';
-  const SUPABASE_KEY   = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlsZmJma2pycWx0ZGplaGdwem12Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE3NzE1NTYsImV4cCI6MjA4NzM0NzU1Nn0.EkCIwO8cPBRaaGacCCYlA9eP6h0mzzuTNPviuXTs868'; 
+  const API_URL      = 'http://localhost:8000';
+  const SUPABASE_URL = 'https://ilfbfkjrqltdjehgpzmv.supabase.co';
+  const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlsZmJma2pycWx0ZGplaGdwem12Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE3NzE1NTYsImV4cCI6MjA4NzM0NzU1Nn0.EkCIwO8cPBRaaGacCCYlA9eP6h0mzzuTNPviuXTs868';
 
   let leads = [];
   let filtroAtual = 'todos';
@@ -694,22 +714,23 @@
     const fase   = fmtFase(l.fase);
 
     let cardCls = 'active', chipCls = 'chip-active', chipLabel = 'Em andamento';
-    if (status === 'PASSAR_HUMANO')                               { cardCls='paused'; chipCls='chip-paused'; chipLabel='Em pausa'; }
-    else if (['ACESSO_LIBERADO','AGUARDAR_FOLLOW_UP'].includes(status)) { cardCls='trial';  chipCls='chip-trial';  chipLabel='Trial ativo'; }
-    else if (tag.includes('FECHAR'))                              { cardCls='fechar'; chipCls='chip-fechar'; chipLabel='Fechar'; }
-    else if (status.startsWith('FINALIZADO'))                     { cardCls='';       chipCls='chip-done';   chipLabel='Finalizado'; }
+    if (status === 'PASSAR_HUMANO')                                    { cardCls='paused'; chipCls='chip-paused'; chipLabel='Em pausa'; }
+    else if (['ACESSO_LIBERADO','AGUARDAR_FOLLOW_UP'].includes(status)){ cardCls='trial';  chipCls='chip-trial';  chipLabel='Trial ativo'; }
+    else if (tag.includes('FECHAR'))                                   { cardCls='fechar'; chipCls='chip-fechar'; chipLabel='Fechar'; }
+    else if (status.startsWith('FINALIZADO'))                          { cardCls='';       chipCls='chip-done';   chipLabel='Finalizado'; }
 
     const podRetomar = status === 'PASSAR_HUMANO';
+    const tel = l.telefone;
 
     return `
-    <div class="card ${cardCls}">
+    <div class="card ${cardCls}" id="card-${tel}">
       <div class="card-num">${String(idx).padStart(2,'0')}</div>
       <div class="card-header">
         <div class="avatar">${ini}</div>
         <span class="status-chip ${chipCls}">${chipLabel}</span>
       </div>
       <div class="card-name">${nome}</div>
-      <div class="card-phone">+${l.telefone}</div>
+      <div class="card-phone">+${tel}</div>
       <div class="card-tags">
         ${fase ? '<span class="tag">📚 '+fase+'</span>' : ''}
         ${l.maior_dificuldade ? '<span class="tag">⚡ '+l.maior_dificuldade+'</span>' : ''}
@@ -717,10 +738,11 @@
       </div>
       <div class="card-time">🕐 Atualizado ${tempo}</div>
       <div class="card-actions">
-        <button class="btn-main" ${podRetomar?'':'disabled'} onclick="confirmar('retomar','${l.telefone}','${nome}')">
+        <button class="btn-main" ${podRetomar?'':'disabled'} onclick="confirmar('retomar','${tel}','${nome}')">
           ▶ Retomar agente
         </button>
-        <button class="btn-sec" onclick="confirmar('finalizar','${l.telefone}','${nome}')">✕</button>
+        <button class="btn-sec" title="Finalizar conversa" onclick="confirmar('finalizar','${tel}','${nome}')">✕</button>
+        <button class="btn-del" title="Excluir lead permanentemente" onclick="confirmar('excluir','${tel}','${nome}')">🗑</button>
       </div>
     </div>`;
   }
@@ -732,6 +754,7 @@
 
   function confirmar(tipo, tel, nome) {
     acao = { tipo, tel, nome };
+
     if (tipo === 'retomar') {
       document.getElementById('modal-icon').textContent  = '▶';
       document.getElementById('modal-title').textContent = 'Retomar atendimento?';
@@ -739,14 +762,23 @@
       document.getElementById('modal-btn').textContent   = '▶ Retomar agente';
       document.getElementById('modal-btn').style.background = 'var(--green)';
       document.getElementById('modal-btn').style.color      = '#000';
-    } else {
+      document.getElementById('modal').style.setProperty('--modal-border', 'var(--green-border)');
+    } else if (tipo === 'finalizar') {
       document.getElementById('modal-icon').textContent  = '✕';
       document.getElementById('modal-title').textContent = 'Finalizar conversa?';
       document.getElementById('modal-sub').textContent   = 'A conversa com ' + nome + ' será encerrada. O agente não responderá mais.';
       document.getElementById('modal-btn').textContent   = 'Finalizar';
       document.getElementById('modal-btn').style.background = 'var(--red)';
       document.getElementById('modal-btn').style.color      = '#fff';
+    } else if (tipo === 'excluir') {
+      document.getElementById('modal-icon').textContent  = '🗑';
+      document.getElementById('modal-title').textContent = 'Excluir lead permanentemente?';
+      document.getElementById('modal-sub').textContent   = 'Todos os dados de ' + nome + ' serão removidos do Supabase (crm_leads e conversas). Esta ação não pode ser desfeita.';
+      document.getElementById('modal-btn').textContent   = '🗑 Excluir permanentemente';
+      document.getElementById('modal-btn').style.background = 'var(--red)';
+      document.getElementById('modal-btn').style.color      = '#fff';
     }
+
     document.getElementById('modal-btn').onclick = executarAcao;
     document.getElementById('modal').classList.add('show');
   }
@@ -759,7 +791,6 @@
     fecharModal();
     if (!acao) return;
     const { tipo, tel, nome } = acao;
-    const novoStatus = tipo === 'retomar' ? 'CONTINUAR' : 'FINALIZADO_SUCESSO';
 
     const headers = {
       apikey: SUPABASE_KEY,
@@ -767,26 +798,91 @@
       'Content-Type': 'application/json',
       Prefer: 'return=minimal'
     };
-    const body = JSON.stringify({ status_conversa: novoStatus, updated_at: new Date().toISOString() });
 
     try {
-      // Atualiza tabela principal conversas
-      await fetch(SUPABASE_URL + '/rest/v1/conversas?telefone=eq.' + tel, {
-        method: 'PATCH', headers, body
-      });
-      // Atualiza tabela crm_leads (usada pelo painel)
-      await fetch(SUPABASE_URL + '/rest/v1/crm_leads?telefone=eq.' + tel, {
-        method: 'PATCH', headers, body
-      });
+
+      // ── RETOMAR ──────────────────────────────
+      if (tipo === 'retomar') {
+        const novoStatus = 'CONTINUAR';
+
+        // Atualiza conversas (tem updated_at)
+        await fetch(SUPABASE_URL + '/rest/v1/conversas?telefone=eq.' + tel, {
+          method: 'PATCH',
+          headers,
+          body: JSON.stringify({ status_conversa: novoStatus, updated_at: new Date().toISOString() })
+        });
+
+        // Atualiza crm_leads — SEM updated_at (coluna não existe nessa tabela)
+        await fetch(SUPABASE_URL + '/rest/v1/crm_leads?telefone=eq.' + tel, {
+          method: 'PATCH',
+          headers,
+          body: JSON.stringify({ status_conversa: novoStatus })
+        });
+
+        toast('success', '✅ Agente retomado para ' + nome);
+
+      // ── FINALIZAR ─────────────────────────────
+      } else if (tipo === 'finalizar') {
+        const novoStatus = 'FINALIZADO_SUCESSO';
+
+        // Atualiza conversas (tem updated_at)
+        await fetch(SUPABASE_URL + '/rest/v1/conversas?telefone=eq.' + tel, {
+          method: 'PATCH',
+          headers,
+          body: JSON.stringify({ status_conversa: novoStatus, updated_at: new Date().toISOString() })
+        });
+
+        // Atualiza crm_leads — SEM updated_at
+        await fetch(SUPABASE_URL + '/rest/v1/crm_leads?telefone=eq.' + tel, {
+          method: 'PATCH',
+          headers,
+          body: JSON.stringify({ status_conversa: novoStatus })
+        });
+
+        toast('success', '✅ Conversa com ' + nome + ' finalizada');
+
+      // ── EXCLUIR ───────────────────────────────
+      } else if (tipo === 'excluir') {
+
+        // Deleta de crm_leads
+        const r1 = await fetch(SUPABASE_URL + '/rest/v1/crm_leads?telefone=eq.' + tel, {
+          method: 'DELETE',
+          headers
+        });
+
+        // Deleta de conversas
+        const r2 = await fetch(SUPABASE_URL + '/rest/v1/conversas?telefone=eq.' + tel, {
+          method: 'DELETE',
+          headers
+        });
+
+        if (!r1.ok && r1.status !== 404) throw new Error('Erro ao excluir crm_leads: ' + r1.status);
+        if (!r2.ok && r2.status !== 404) throw new Error('Erro ao excluir conversas: ' + r2.status);
+
+        // Remove o card da tela imediatamente sem precisar recarregar
+        const cardEl = document.getElementById('card-' + tel);
+        if (cardEl) {
+          cardEl.style.transition = 'opacity 0.3s, transform 0.3s';
+          cardEl.style.opacity = '0';
+          cardEl.style.transform = 'scale(0.95)';
+          setTimeout(() => cardEl.remove(), 300);
+        }
+
+        // Atualiza array local
+        leads = leads.filter(l => l.telefone !== tel);
+        atualizarStats();
+        atualizarContadores();
+
+        toast('success', '🗑 Lead ' + nome + ' excluído permanentemente');
+        return; // Não chama carregarDados para evitar piscar
+      }
+
     } catch(e) {
-      toast('error', '❌ Erro ao atualizar. Tente novamente.');
+      console.error(e);
+      toast('error', '❌ Erro: ' + (e.message || 'Tente novamente'));
       return;
     }
 
-    const msg = tipo === 'retomar'
-      ? '✅ Agente retomado para ' + nome
-      : '✅ Conversa com ' + nome + ' finalizada';
-    toast('success', msg);
     setTimeout(carregarDados, 800);
   }
 
