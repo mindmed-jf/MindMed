@@ -29,6 +29,13 @@ load_dotenv(override=True)
 # CONFIGURAÇÃO
 # ============================================================================
 
+def horario_permitido() -> bool:
+    """Verifica se está dentro do horário permitido para envio (07:00 - 21:00 horário de Brasília)."""
+    from datetime import timezone, timedelta
+    brasilia = timezone(timedelta(hours=-3))
+    agora = datetime.now(brasilia)
+    return 7 <= agora.hour < 21
+
 log = logging.getLogger(__name__)
 
 supabase: Client = create_client(
@@ -152,6 +159,10 @@ async def processar_followups():
     Busca conversas com status ACESSO_LIBERADO, CADASTRO_ENVIADO ou AGUARDAR_FOLLOW_UP
     que não tiveram atualização nos últimos X horas.
     """
+    if not horario_permitido():
+        log.info("🌙 Fora do horário permitido (07:00-21:00). Follow-ups pausados.")
+        return
+
     log.info("🔍 Verificando follow-ups pendentes...")
 
     try:
@@ -254,6 +265,10 @@ async def processar_reengajamento():
     Verifica leads que estão com status CONTINUAR há muito tempo sem responder.
     Envia mensagens de reengajamento para tentar recuperá-los.
     """
+    if not horario_permitido():
+        log.info("🌙 Fora do horário permitido (07:00-21:00). Reengajamentos pausados.")
+        return
+
     log.info("🔍 Verificando reengajamentos pendentes...")
 
     try:
