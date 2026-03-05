@@ -181,14 +181,19 @@ def dividir_mensagem(texto: str) -> list:
     return resultado if resultado else [texto.strip()]
 
 
-def calcular_delay(texto: str) -> float:
-    """Calcula delay proporcional ao tamanho do texto. Min 1.5s, max 5s."""
+def calcular_typing(texto: str) -> int:
+    """
+    Calcula segundos de 'digitando...' proporcional ao tamanho do texto.
+    Simula velocidade humana de digitação (~4 palavras por segundo).
+    Min: 2s | Max: 10s
+    """
     palavras = len(texto.split())
-    return min(max(3.0 + (palavras * 0.12), 3.0), 8.0)
+    segundos = round(palavras * 0.25)
+    return min(max(segundos, 2), 10)
 
 
 async def enviar_mensagem_zapi(telefone: str, texto: str):
-    """Envia mensagem via Z-API com delay humanizado e quebra em partes."""
+    """Envia mensagem via Z-API com typing humanizado e quebra em partes."""
     if not ZAPI_INSTANCE_ID or not ZAPI_TOKEN:
         log.warning("Credenciais Z-API não configuradas. Mensagem não enviada.")
         log.info(f"[SIMULADO] Para {telefone}: {texto}")
@@ -198,21 +203,22 @@ async def enviar_mensagem_zapi(telefone: str, texto: str):
     partes = dividir_mensagem(texto)
 
     try:
-        async with httpx.AsyncClient(timeout=15) as client:
+        async with httpx.AsyncClient(timeout=30) as client:
             for i, parte in enumerate(partes):
-                delay = calcular_delay(parte)
-                log.info(f"⏳ Aguardando {delay:.1f}s (parte {i+1}/{len(partes)})")
-                await asyncio.sleep(delay)
+                typing = calcular_typing(parte)
 
                 payload = {
                     "phone": telefone,
-                    "message": parte
+                    "message": parte,
+                    "delayMessage": 1,
+                    "delayTyping": typing
                 }
                 headers = {
                     "Content-Type": "application/json",
                     "client-token": ZAPI_CLIENT_TOKEN
                 }
 
+                log.info(f"⌨️ Digitando {typing}s → parte {i+1}/{len(partes)}")
                 response = await client.post(url, json=payload, headers=headers)
                 response.raise_for_status()
                 log.info(f"✅ Parte {i+1}/{len(partes)} enviada para {telefone}")
