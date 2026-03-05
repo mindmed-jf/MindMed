@@ -12,8 +12,10 @@ import os
 import json
 import httpx
 import asyncio
+import hashlib
 import logging
 from datetime import datetime
+from collections import OrderedDict
 from typing import Optional
 
 from fastapi import FastAPI, Request, Response, HTTPException, BackgroundTasks
@@ -52,8 +54,12 @@ async def painel():
 # Z-API
 ZAPI_INSTANCE_ID  = os.getenv("ZAPI_INSTANCE_ID", "")
 ZAPI_TOKEN        = os.getenv("ZAPI_TOKEN", "")
-ZAPI_CLIENT_TOKEN = os.getenv("ZAPI_CLIENT_TOKEN", "")  # Security token do webhook
+ZAPI_CLIENT_TOKEN = os.getenv("ZAPI_CLIENT_TOKEN", "")
 ZAPI_BASE_URL     = f"https://api.z-api.io/instances/{ZAPI_INSTANCE_ID}/token/{ZAPI_TOKEN}"
+
+# Cache de deduplicação — evita processar o mesmo webhook 2x
+_cache_mensagens: OrderedDict = OrderedDict()
+DEDUP_TTL_SEGUNDOS = 15
 
 
 @app.on_event("startup")
@@ -77,6 +83,33 @@ async def shutdown_event():
 @app.get("/health")
 async def health():
     return {"status": "ok", "timestamp": datetime.now().isoformat(), "agente": "MindMed v3.0"}
+
+
+# ============================================================================
+# DEDUPLICAÇÃO DE WEBHOOK
+# ============================================================================
+
+def ja_processado(telefone: str, texto: str) -> bool:
+    """
+    Verifica se essa mensagem já foi processada nos últimos 15s.
+    Evita duplicatas quando a Z-API dispara o webhook mais de uma vez.
+    Usa MD5 do par telefone+texto como chave — leve e suficiente.
+    """
+    agora = datetime.now().timestamp()
+    chave = hashlib.md5(f"{telefone}:{texto}".encode()).hexdigest()
+
+    # Limpa entradas expiradas antes de verificar
+    expirados = [k for k, t in _cache_mensagens.items() if agora - t > DEDUP_TTL_SEGUNDOS]
+    for k in expirados:
+        del _cache_mensagens[k]
+
+    # Se já existe no cache, é duplicata
+    if chave in _cache_mensagens:
+        return True
+
+    # Registra no cache e permite processar
+    _cache_mensagens[chave] = agora
+    return False
 
 
 # ============================================================================
@@ -130,7 +163,7 @@ async def receber_zapi(request: Request, background_tasks: BackgroundTasks):
 
     # Extrai telefone e texto
     telefone = body.get("phone", "").replace("+", "").replace(" ", "")
-    
+
     # Texto pode vir em diferentes formatos dependendo do tipo de mensagem
     texto = ""
     if body.get("text"):
@@ -140,6 +173,11 @@ async def receber_zapi(request: Request, background_tasks: BackgroundTasks):
 
     if not telefone or not texto:
         return JSONResponse({"status": "ignored", "reason": "no_text_or_phone"})
+
+    # Deduplicação — ignora se já processamos essa mensagem recentemente
+    if ja_processado(telefone, texto):
+        log.warning(f"⚠️ Mensagem duplicada ignorada | {telefone}: {texto[:40]}")
+        return JSONResponse({"status": "ignored", "reason": "duplicate"})
 
     log.info(f"📨 Z-API | {telefone}: {texto[:60]}")
 
