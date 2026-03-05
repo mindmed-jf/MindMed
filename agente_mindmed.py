@@ -249,16 +249,16 @@ def buscar_dados_aluno(telefone: str) -> Dict:
             supabase.table("leads")
             .select("*")
             .eq("telefone", telefone)
-            .maybe_single()
+            .limit(1)
             .execute()
         )
         if resultado.data:
-            print(f"✅ Aluno encontrado: {resultado.data.get('nome', 'sem nome')}")
-            return {"encontrado": True, "dados": resultado.data}
+            dados = resultado.data[0]
+            print(f"✅ Aluno encontrado: {dados.get('nome', 'sem nome')}")
+            return {"encontrado": True, "dados": dados}
         return {"encontrado": False, "dados": {}}
     except Exception as e:
-        # PostgREST retorna erro quando .single() não encontra registro
-        print(f"ℹ️ Aluno não encontrado no banco: {e}")
+        print(f"ℹ️ Erro ao buscar aluno no banco: {e}")
         return {"encontrado": False, "dados": {}}
 
 
@@ -329,8 +329,6 @@ def registrar_acesso_trial(
     except Exception as e:
         print(f"❌ Erro ao registrar trial: {e}")
         return {"sucesso": False, "erro": str(e)}
-
-
 
 
 def notificar_time_comercial(
@@ -756,12 +754,19 @@ class GestorConversasMindMed:
                 supabase.table("conversas")
                 .select("*")
                 .eq("telefone", telefone)
-                .maybe_single()
+                .limit(1)
                 .execute()
             )
-            return resultado.data or {}
-        except Exception:
-            # Conversa não existe ainda, retorna estado inicial
+            if resultado.data:
+                return resultado.data[0]
+            return {
+                "telefone": telefone,
+                "historico": [],
+                "status_conversa": "ATIVO",
+                "contador_mensagens_alex": 0
+            }
+        except Exception as e:
+            print(f"ℹ️ Erro ao buscar estado da conversa: {e}")
             return {
                 "telefone": telefone,
                 "historico": [],
