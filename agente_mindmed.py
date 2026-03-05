@@ -435,18 +435,36 @@ def notificar_davi_whatsapp(
         return
 
     # Monta mensagem para o Davi (humano) conforme o tipo de evento
+    # PASSAR_HUMANO tem 3 subtipos detectados pelo prefixo do resumo_conversa:
+    #   🔧 PROBLEMA TÉCNICO  → bug, login, acesso, pagamento
+    #   📋 PROBLEMA DE CONTEÚDO → card errado, desatualizado
+    #   (sem prefixo)        → lead quer fechar (padrão)
+    resumo = resumo_conversa or ""
     if status == "PASSAR_HUMANO":
-        emoji = "🔴"
-        titulo = "LEAD QUER FECHAR"
+        if resumo.startswith("🔧"):
+            emoji = "🔧"
+            titulo = "PROBLEMA TÉCNICO"
+            acao = "⚡ *AÇÃO:* Resolva o problema técnico do aluno!"
+        elif resumo.startswith("📋"):
+            emoji = "📋"
+            titulo = "PROBLEMA DE CONTEÚDO"
+            acao = "⚡ *AÇÃO:* Verifique e corrija o conteúdo reportado!"
+        else:
+            emoji = "🔴"
+            titulo = "LEAD QUER FECHAR"
+            acao = "⚡ *AÇÃO:* Assuma a conversa e feche a venda agora!"
     elif status == "ACESSO_LIBERADO":
         emoji = "🟢"
         titulo = "NOVO TRIAL — LIBERAR ACESSO AGORA"
+        acao = "⚡ *AÇÃO:* Acesse app.mindmedicina.com e libere o trial de 48h manualmente."
     elif status == "CADASTRO_ENVIADO":
         emoji = "🔵"
         titulo = "ALUNO SE CADASTROU — AGUARDANDO TRIAL"
+        acao = None
     else:
         emoji = "🟡"
         titulo = "ATENÇÃO NECESSÁRIA"
+        acao = None
 
     linhas = [
         f"{emoji} *{titulo}*",
@@ -459,10 +477,8 @@ def notificar_davi_whatsapp(
         linhas.append(f"Plano de interesse: {plano_interesse}")
     if resumo_conversa:
         linhas.append(f"Contexto: {resumo_conversa}")
-    if status == "ACESSO_LIBERADO":
-        linhas.append(f"\n⚡ *AÇÃO:* Acesse app.mindmedicina.com e libere o trial de 48h manualmente.")
-    elif status == "PASSAR_HUMANO":
-        linhas.append(f"\n⚡ *AÇÃO:* Assuma a conversa e feche a venda agora!")
+    if acao:
+        linhas.append(f"\n{acao}")
 
     mensagem = "\n".join(linhas)
 
