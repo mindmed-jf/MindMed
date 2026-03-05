@@ -1,8 +1,5 @@
 """
 Sistema de Agente IA - Bia MindMed
-Versão: 3.0 (Agente com Function Calling)
-
-Diferente da v2, a Bia agora é um AGENTE de verdade:
 - Tem ferramentas que pode chamar autonomamente
 - Age no mundo: cria leads, notifica time, consulta horários
 - Loop de raciocínio: pensa → age → observa → responde
@@ -883,3 +880,4 @@ def simular_conversa():
 
 if __name__ == "__main__":
     simular_conversa()
+
