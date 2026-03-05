@@ -1,8 +1,8 @@
 """
-Sistema de Agente IA - Alex MindMed
+Sistema de Agente IA - Bia MindMed
 Versão: 3.0 (Agente com Function Calling)
 
-Diferente da v2, o Alex agora é um AGENTE de verdade:
+Diferente da v2, a Bia agora é um AGENTE de verdade:
 - Tem ferramentas que pode chamar autonomamente
 - Age no mundo: cria leads, notifica time, consulta horários
 - Loop de raciocínio: pensa → age → observa → responde
@@ -55,7 +55,7 @@ except Exception as e:
 
 
 # ============================================================================
-# 2. DEFINIÇÃO DAS FERRAMENTAS (o que o Alex pode fazer)
+# 2. DEFINIÇÃO DAS FERRAMENTAS (o que a Bia pode fazer)
 # ============================================================================
 
 FERRAMENTAS = [
@@ -340,7 +340,7 @@ def notificar_time_comercial(
     plano_interesse: str = None
 ) -> Dict:
     """
-    Notifica o time comercial via webhook E notifica o Davi no WhatsApp.
+    Notifica o time comercial via webhook E notifica o Davi (humano) no WhatsApp.
     Também salva a tag CRM no Supabase.
     """
 
@@ -361,7 +361,7 @@ def notificar_time_comercial(
     except Exception as e:
         print(f"⚠️ Erro ao salvar tag CRM: {e}")
 
-    # 2. Notifica Davi no WhatsApp nos eventos críticos
+    # 2. Notifica o Davi no WhatsApp nos eventos críticos
     eventos_criticos = ["PASSAR_HUMANO", "ACESSO_LIBERADO", "CADASTRO_ENVIADO"]
     if status in eventos_criticos:
         notificar_davi_whatsapp(
@@ -419,8 +419,8 @@ def notificar_davi_whatsapp(
     resumo_conversa: str = None
 ):
     """
-    Envia notificação direta para o WhatsApp do Davi via Z-API.
-    Chamado nos eventos: PASSAR_HUMANO, ACESSO_LIBERADO, CADASTRO_ENVIADO.
+    Envia notificação direta para o WhatsApp do Davi (humano) via Z-API.
+    Chamado pela Bia nos eventos: PASSAR_HUMANO, ACESSO_LIBERADO, CADASTRO_ENVIADO.
     """
     if not DAVI_WHATSAPP:
         print("ℹ️ DAVI_WHATSAPP não configurado — notificação não enviada")
@@ -434,7 +434,7 @@ def notificar_davi_whatsapp(
         print("ℹ️ Credenciais Z-API não configuradas — notificação não enviada")
         return
 
-    # Monta mensagem para o Davi conforme o tipo de evento
+    # Monta mensagem para o Davi (humano) conforme o tipo de evento
     if status == "PASSAR_HUMANO":
         emoji = "🔴"
         titulo = "LEAD QUER FECHAR"
@@ -476,14 +476,14 @@ def notificar_davi_whatsapp(
             "Content-Type": "application/json",
             "client-token": zapi_client
         }
-        print(f"📤 Notificando Davi ({DAVI_WHATSAPP}) | Evento: {status}")
+        print(f"📤 Notificando Davi (humano) ({DAVI_WHATSAPP}) | Evento: {status}")
         with httpx.Client(timeout=20) as client:
             response = client.post(url, json=payload, headers=headers)
         print(f"📬 Z-API resposta: {response.status_code} | {response.text[:150]}")
         response.raise_for_status()
-        print(f"✅ Davi notificado no WhatsApp | Status: {status}")
+        print(f"✅ Davi (humano) notificado no WhatsApp | Status: {status}")
     except Exception as e:
-        print(f"❌ Erro ao notificar Davi via Z-API: {e}")
+        print(f"❌ Erro ao notificar Davi (humano) via Z-API: {e}")
 
 
 # ============================================================================
@@ -661,7 +661,7 @@ class GestorConversasMindMed:
             # 1. Busca ou cria estado da conversa
             estado = self._buscar_estado(telefone)
 
-            # 2. Verifica se a conversa já foi finalizada ou está com Davi
+            # 2. Verifica se a conversa já foi finalizada ou está em pausa
             status_finalizados = [
                 "FINALIZADO_RECUSOU",
                 "FINALIZADO_SUCESSO",
@@ -673,7 +673,7 @@ class GestorConversasMindMed:
                 print(f"ℹ️ Conversa já encerrada com status {estado['status_conversa']}")
                 return {"resposta": "", "status": estado["status_conversa"], "deve_enviar": False}
 
-            # Se Davi está atendendo (PASSAR_HUMANO) ou trial aguardando liberação (ACESSO_LIBERADO),
+            # Se conversa está com Davi (PASSAR_HUMANO) ou trial aguardando liberação (ACESSO_LIBERADO),
             # agente não responde. Retoma quando o status for alterado para CONTINUAR no Supabase.
             if estado.get("status_conversa") in ("PASSAR_HUMANO", "ACESSO_LIBERADO"):
                 status_atual = estado["status_conversa"]
@@ -699,7 +699,7 @@ class GestorConversasMindMed:
                 contador_mensagens=contador
             )
 
-            # 5. Atualiza histórico com resposta do Alex
+            # 5. Atualiza histórico com resposta da Bia
             historico.append({"role": "assistant", "content": resposta})
             contador += 1
 
@@ -713,13 +713,15 @@ class GestorConversasMindMed:
             )
 
             # 7. Garante notificação ao time em status críticos
-            # (caso o agente não tenha chamado a ferramenta automaticamente)
+            # FALLBACK: só dispara se o agente NÃO chamou a ferramenta automaticamente
+            # (evita notificação dupla quando o agente já chamou notificar_time_comercial)
             status_anterior = estado.get("status_conversa", "CONTINUAR")
-            # Normaliza: estado inicial retorna "ATIVO" mas o sistema usa "CONTINUAR"
             if status_anterior == "ATIVO":
                 status_anterior = "CONTINUAR"
             status_criticos = ["PASSAR_HUMANO", "ACESSO_LIBERADO", "CADASTRO_ENVIADO", "FINALIZADO_INATIVO", "FINALIZADO_SUCESSO"]
-            if status in status_criticos and status != status_anterior:
+            tag_ja_salva = estado.get("tag_crm", "")  # se ferramenta foi chamada, tag já está no estado
+            ferramenta_ja_chamou = status in status_criticos and TAGS_STATUS.get(status, "") in tag_ja_salva
+            if status in status_criticos and status != status_anterior and not ferramenta_ja_chamou:
                 nome = dados_coletados.get("nome") or estado.get("nome_aluno", "")
                 fase = dados_coletados.get("fase") or estado.get("fase", "")
                 notificar_time_comercial(
@@ -820,7 +822,7 @@ class GestorConversasMindMed:
 def simular_conversa():
     """Simula uma conversa completa no terminal."""
     print("=" * 65)
-    print("🤖 SIMULADOR - DAVI MINDMED v3.0 (Agente IA)")
+    print("🤖 SIMULADOR - BIA MINDMED v3.0 (Agente IA)")
     print("=" * 65)
     print("\nℹ️  O agente usará Supabase real se configurado.")
     print("    Para teste sem banco, configure SUPABASE_URL=mock no .env\n")
@@ -845,7 +847,7 @@ def simular_conversa():
 
         resultado = gestor.processar_mensagem(telefone=telefone, mensagem=mensagem)
 
-        print(f"\n🤖 DAVI: {resultado['resposta']}")
+        print(f"\n🤖 BIA: {resultado['resposta']}")
         print(f"\n📊 Status: {resultado['status']}")
         if resultado.get("dados_coletados") and any(resultado["dados_coletados"].values()):
             print(f"📝 Dados coletados: {resultado['dados_coletados']}")
