@@ -673,18 +673,18 @@ class GestorConversasMindMed:
                 print(f"ℹ️ Conversa já encerrada com status {estado['status_conversa']}")
                 return {"resposta": "", "status": estado["status_conversa"], "deve_enviar": False}
 
-            # Se Davi está atendendo (PASSAR_HUMANO), agente não responde
-            # O agente só retoma quando o status for alterado para CONTINUAR no Supabase
-            if estado.get("status_conversa") == "PASSAR_HUMANO":
-                print(f"ℹ️ Davi está atendendo {telefone} — agente em pausa")
-                # Salva a mensagem no histórico mas não responde
+            # Se Davi está atendendo (PASSAR_HUMANO) ou trial aguardando liberação (ACESSO_LIBERADO),
+            # agente não responde. Retoma quando o status for alterado para CONTINUAR no Supabase.
+            if estado.get("status_conversa") in ("PASSAR_HUMANO", "ACESSO_LIBERADO"):
+                status_atual = estado["status_conversa"]
+                print(f"ℹ️ Agente em pausa [{status_atual}] para {telefone}")
                 historico = estado.get("historico", [])
                 historico.append({"role": "user", "content": mensagem})
                 supabase.table("conversas").update({
                     "historico": historico[-20:],
                     "updated_at": datetime.now(timezone.utc).isoformat()
                 }).eq("telefone", telefone).execute()
-                return {"resposta": "", "status": "PASSAR_HUMANO", "deve_enviar": False}
+                return {"resposta": "", "status": status_atual, "deve_enviar": False}
 
             historico = estado.get("historico", [])
             contador = estado.get("contador_mensagens_alex", 0)
