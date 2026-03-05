@@ -375,7 +375,7 @@ def notificar_time_comercial(
 
     # 3. Envia webhook externo (Zapier/Make/n8n) se configurado
     payload = {
-        "evento": "notificacao_alex",
+        "evento": "notificacao_bia",
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "telefone": telefone,
         "nome_aluno": nome_aluno,
