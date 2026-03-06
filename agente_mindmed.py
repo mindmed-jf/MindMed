@@ -29,7 +29,7 @@ supabase: Client = create_client(
 )
 
 # Config
-MODELO_IA = "gpt-4o"  # Trocado de gpt-4o-mini: seguia JSON de forma mais confiável
+MODELO_IA = "gpt-4o-mini" 
 MAX_TENTATIVAS_API = 3
 WEBHOOK_NOTIFICACAO = os.getenv("WEBHOOK_NOTIFICACAO_URL", "")  # Zapier/Make/n8n
 DAVI_WHATSAPP = os.getenv("DAVI_WHATSAPP", "")  # Ex: 5532999999999 (número do Davi sem +)
@@ -880,4 +880,5 @@ def simular_conversa():
 
 if __name__ == "__main__":
     simular_conversa()
+
 
