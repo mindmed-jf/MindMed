@@ -31,8 +31,8 @@ supabase: Client = create_client(
 # Config
 MODELO_IA = "gpt-4o-mini" 
 MAX_TENTATIVAS_API = 3
-WEBHOOK_NOTIFICACAO = os.getenv("WEBHOOK_NOTIFICACAO_URL", "")  # Zapier/Make/n8n
-DAVI_WHATSAPP = os.getenv("DAVI_WHATSAPP", "")  # Ex: 5532999999999 (número do Davi sem +)
+WEBHOOK_NOTIFICACAO = os.getenv("WEBHOOK_NOTIFICACAO_URL", "")
+DAVI_WHATSAPP = os.getenv("DAVI_WHATSAPP", "")
 
 
 def carregar_prompt(caminho: str = "prompt_mindmed.md") -> str:
@@ -52,7 +52,7 @@ except Exception as e:
 
 
 # ============================================================================
-# 2. DEFINIÇÃO DAS FERRAMENTAS (o que a Bia pode fazer)
+# 2. DEFINIÇÃO DAS FERRAMENTAS
 # ============================================================================
 
 FERRAMENTAS = [
@@ -90,51 +90,27 @@ FERRAMENTAS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "telefone": {
-                        "type": "string",
-                        "description": "Telefone do aluno"
-                    },
-                    "nome": {
-                        "type": "string",
-                        "description": "Nome do aluno (se coletado)"
-                    },
+                    "telefone": {"type": "string"},
+                    "nome": {"type": "string"},
                     "fase": {
                         "type": "string",
-                        "enum": ["ciclo_basico", "ciclo_clinico", "internato", "formado", "residencia"],
-                        "description": "Fase atual do aluno"
+                        "enum": ["ciclo_basico", "ciclo_clinico", "internato", "formado", "residencia"]
                     },
-                    "usa_flashcards": {
-                        "type": "boolean",
-                        "description": "Se o aluno já usa flashcards nos estudos"
-                    },
-                    "presta_residencia_esse_ano": {
-                        "type": "boolean",
-                        "description": "Se o aluno vai prestar residência este ano"
-                    },
-                    "maior_dificuldade": {
-                        "type": "string",
-                        "description": "Principal dificuldade nos estudos relatada pelo aluno"
-                    },
+                    "usa_flashcards": {"type": "boolean"},
+                    "presta_residencia_esse_ano": {"type": "boolean"},
+                    "maior_dificuldade": {"type": "string"},
                     "status_teste": {
                         "type": "string",
-                        "enum": ["nao_iniciou", "testando", "testou_gostou", "testou_nao_gostou"],
-                        "description": "Status atual do trial de 48h"
+                        "enum": ["nao_iniciou", "testando", "testou_gostou", "testou_nao_gostou"]
                     },
                     "status_conversa": {
                         "type": "string",
                         "enum": [
-                            "CONTINUAR",
-                            "CADASTRO_ENVIADO",
-                            "ACESSO_LIBERADO",
-                            "AGUARDAR_FOLLOW_UP",
-                            "PASSAR_HUMANO",
-                            "FINALIZADO_SUCESSO",
-                            "FINALIZADO_RECUSOU",
-                            "FINALIZADO_NAO_QUALIFICADO",
-                            "FINALIZADO_INATIVO",
-                            "FINALIZADO_ERRO"
-                        ],
-                        "description": "Status atual da conversa"
+                            "CONTINUAR", "CADASTRO_ENVIADO", "ACESSO_LIBERADO",
+                            "AGUARDAR_FOLLOW_UP", "PASSAR_HUMANO", "FINALIZADO_SUCESSO",
+                            "FINALIZADO_RECUSOU", "FINALIZADO_NAO_QUALIFICADO",
+                            "FINALIZADO_INATIVO", "FINALIZADO_ERRO"
+                        ]
                     }
                 },
                 "required": ["telefone"]
@@ -154,22 +130,10 @@ FERRAMENTAS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "telefone": {
-                        "type": "string",
-                        "description": "Telefone do aluno"
-                    },
-                    "nome_aluno": {
-                        "type": "string",
-                        "description": "Nome do aluno"
-                    },
-                    "fase": {
-                        "type": "string",
-                        "description": "Fase do aluno"
-                    },
-                    "contexto": {
-                        "type": "string",
-                        "description": "Resumo do perfil: usa flashcards, dificuldades, vai prestar residência este ano"
-                    }
+                    "telefone": {"type": "string"},
+                    "nome_aluno": {"type": "string"},
+                    "fase": {"type": "string"},
+                    "contexto": {"type": "string"}
                 },
                 "required": ["telefone"]
             }
@@ -196,21 +160,13 @@ FERRAMENTAS = [
                     "status": {
                         "type": "string",
                         "enum": [
-                            "ACESSO_LIBERADO",
-                            "PASSAR_HUMANO",
-                            "FINALIZADO_SUCESSO",
-                            "FINALIZADO_RECUSOU",
-                            "FINALIZADO_NAO_QUALIFICADO",
-                            "FINALIZADO_INATIVO"
+                            "ACESSO_LIBERADO", "PASSAR_HUMANO", "FINALIZADO_SUCESSO",
+                            "FINALIZADO_RECUSOU", "FINALIZADO_NAO_QUALIFICADO", "FINALIZADO_INATIVO"
                         ]
                     },
-                    "resumo_conversa": {
-                        "type": "string",
-                        "description": "Resumo do perfil e da conversa para o time ter contexto"
-                    },
+                    "resumo_conversa": {"type": "string"},
                     "plano_interesse": {
                         "type": "string",
-                        "description": "Plano que o aluno demonstrou interesse (mensal, anual, bianual)",
                         "enum": ["mensal", "anual", "bianual", "nao_informado"]
                     }
                 },
@@ -225,7 +181,6 @@ FERRAMENTAS = [
 # 3. IMPLEMENTAÇÃO DAS FERRAMENTAS
 # ============================================================================
 
-# Tags CRM para o Supabase — definido aqui pois é usado em notificar_time_comercial
 TAGS_STATUS = {
     "CONTINUAR":                  "🔵 EM_ATENDIMENTO",
     "CADASTRO_ENVIADO":           "🟡 CADASTRO_ENVIADO",
@@ -240,7 +195,6 @@ TAGS_STATUS = {
 }
 
 def buscar_dados_aluno(telefone: str) -> Dict:
-    """Busca dados do aluno no Supabase."""
     try:
         resultado = (
             supabase.table("leads")
@@ -269,23 +223,15 @@ def criar_ou_atualizar_lead(
     status_teste: str = None,
     status_conversa: str = None
 ) -> Dict:
-    """Cria ou atualiza lead no Supabase com os campos do fluxo MindMed."""
     try:
         dados = {"telefone": telefone, "updated_at": datetime.now(timezone.utc).isoformat()}
-        if nome:
-            dados["nome"] = nome
-        if fase:
-            dados["fase"] = fase
-        if usa_flashcards is not None:
-            dados["usa_flashcards"] = usa_flashcards
-        if presta_residencia_esse_ano is not None:
-            dados["presta_residencia_esse_ano"] = presta_residencia_esse_ano
-        if maior_dificuldade:
-            dados["maior_dificuldade"] = maior_dificuldade
-        if status_teste:
-            dados["status_teste"] = status_teste
-        if status_conversa:
-            dados["status_conversa"] = status_conversa
+        if nome: dados["nome"] = nome
+        if fase: dados["fase"] = fase
+        if usa_flashcards is not None: dados["usa_flashcards"] = usa_flashcards
+        if presta_residencia_esse_ano is not None: dados["presta_residencia_esse_ano"] = presta_residencia_esse_ano
+        if maior_dificuldade: dados["maior_dificuldade"] = maior_dificuldade
+        if status_teste: dados["status_teste"] = status_teste
+        if status_conversa: dados["status_conversa"] = status_conversa
 
         resultado = (
             supabase.table("leads")
@@ -305,7 +251,6 @@ def registrar_acesso_trial(
     fase: str = None,
     contexto: str = None
 ) -> Dict:
-    """Registra que o aluno se cadastrou e notifica o time para liberar acesso de 48h."""
     try:
         criar_ou_atualizar_lead(
             telefone=telefone,
@@ -336,12 +281,6 @@ def notificar_time_comercial(
     resumo_conversa: str = None,
     plano_interesse: str = None
 ) -> Dict:
-    """
-    Notifica o time comercial via webhook E notifica o Davi (humano) no WhatsApp.
-    Também salva a tag CRM no Supabase.
-    """
-
-    # 1. Salva tag CRM no Supabase
     tag = TAGS_STATUS.get(status, status)
     try:
         supabase.table("conversas").update({
@@ -358,7 +297,6 @@ def notificar_time_comercial(
     except Exception as e:
         print(f"⚠️ Erro ao salvar tag CRM: {e}")
 
-    # 2. Notifica o Davi no WhatsApp nos eventos críticos
     eventos_criticos = ["PASSAR_HUMANO", "ACESSO_LIBERADO", "CADASTRO_ENVIADO"]
     if status in eventos_criticos:
         notificar_davi_whatsapp(
@@ -370,7 +308,6 @@ def notificar_time_comercial(
             resumo_conversa=resumo_conversa
         )
 
-    # 3. Envia webhook externo (Zapier/Make/n8n) se configurado
     payload = {
         "evento": "notificacao_bia",
         "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -398,7 +335,6 @@ def notificar_time_comercial(
         return {"sucesso": False, "erro": str(e)}
 
 
-# Mapa de nome da função → função real
 MAPA_FERRAMENTAS = {
     "buscar_dados_aluno": buscar_dados_aluno,
     "criar_ou_atualizar_lead": criar_ou_atualizar_lead,
@@ -415,10 +351,6 @@ def notificar_davi_whatsapp(
     plano_interesse: str = None,
     resumo_conversa: str = None
 ):
-    """
-    Envia notificação direta para o WhatsApp do Davi (humano) via Z-API.
-    Chamado pela Bia nos eventos: PASSAR_HUMANO, ACESSO_LIBERADO, CADASTRO_ENVIADO.
-    """
     if not DAVI_WHATSAPP:
         print("ℹ️ DAVI_WHATSAPP não configurado — notificação não enviada")
         return
@@ -431,36 +363,34 @@ def notificar_davi_whatsapp(
         print("ℹ️ Credenciais Z-API não configuradas — notificação não enviada")
         return
 
-    # Monta mensagem para o Davi (humano) conforme o tipo de evento
-    # PASSAR_HUMANO tem 3 subtipos detectados pelo prefixo do resumo_conversa:
-    #   🔧 PROBLEMA TÉCNICO  → bug, login, acesso, pagamento
-    #   📋 PROBLEMA DE CONTEÚDO → card errado, desatualizado
-    #   (sem prefixo)        → lead quer fechar (padrão)
     resumo = resumo_conversa or ""
     if status == "PASSAR_HUMANO":
         if resumo.startswith("🔧"):
-            emoji = "🔧"
-            titulo = "PROBLEMA TÉCNICO"
+            emoji = "🔧"; titulo = "PROBLEMA TÉCNICO"
             acao = "⚡ *AÇÃO:* Resolva o problema técnico do aluno!"
         elif resumo.startswith("📋"):
-            emoji = "📋"
-            titulo = "PROBLEMA DE CONTEÚDO"
+            emoji = "📋"; titulo = "PROBLEMA DE CONTEÚDO"
             acao = "⚡ *AÇÃO:* Verifique e corrija o conteúdo reportado!"
+        elif resumo.startswith("❓"):
+            emoji = "❓"; titulo = "DÚVIDA PENDENTE"
+            acao = "⚡ *AÇÃO:* Responda a dúvida do aluno!"
+        elif resumo.startswith("🟢"):
+            emoji = "🟢"; titulo = "LIBERAR ACESSO"
+            acao = "⚡ *AÇÃO:* Acesse app.mindmedicina.com e libere o acesso manualmente."
+        elif resumo.startswith("🔴"):
+            emoji = "🔴"; titulo = "LEAD QUER FECHAR"
+            acao = "⚡ *AÇÃO:* Assuma a conversa e feche a venda agora!"
         else:
-            emoji = "🔴"
-            titulo = "LEAD QUER FECHAR"
+            emoji = "🔴"; titulo = "LEAD QUER FECHAR"
             acao = "⚡ *AÇÃO:* Assuma a conversa e feche a venda agora!"
     elif status == "ACESSO_LIBERADO":
-        emoji = "🟢"
-        titulo = "NOVO TRIAL — LIBERAR ACESSO AGORA"
+        emoji = "🟢"; titulo = "NOVO TRIAL — LIBERAR ACESSO AGORA"
         acao = "⚡ *AÇÃO:* Acesse app.mindmedicina.com e libere o trial de 48h manualmente."
     elif status == "CADASTRO_ENVIADO":
-        emoji = "🔵"
-        titulo = "ALUNO SE CADASTROU — AGUARDANDO TRIAL"
+        emoji = "🔵"; titulo = "ALUNO SE CADASTROU — AGUARDANDO TRIAL"
         acao = None
     else:
-        emoji = "🟡"
-        titulo = "ATENÇÃO NECESSÁRIA"
+        emoji = "🟡"; titulo = "ATENÇÃO NECESSÁRIA"
         acao = None
 
     linhas = [
@@ -481,26 +411,20 @@ def notificar_davi_whatsapp(
 
     try:
         url = f"https://api.z-api.io/instances/{zapi_instance}/token/{zapi_token}/send-text"
-        payload = {
-            "phone": DAVI_WHATSAPP,
-            "message": mensagem
-        }
-        headers = {
-            "Content-Type": "application/json",
-            "client-token": zapi_client
-        }
-        print(f"📤 Notificando Davi (humano) ({DAVI_WHATSAPP}) | Evento: {status}")
+        payload = {"phone": DAVI_WHATSAPP, "message": mensagem}
+        headers = {"Content-Type": "application/json", "client-token": zapi_client}
+        print(f"📤 Notificando Davi ({DAVI_WHATSAPP}) | Evento: {status}")
         with httpx.Client(timeout=20) as client:
             response = client.post(url, json=payload, headers=headers)
         print(f"📬 Z-API resposta: {response.status_code} | {response.text[:150]}")
         response.raise_for_status()
-        print(f"✅ Davi (humano) notificado no WhatsApp | Status: {status}")
+        print(f"✅ Davi notificado | Status: {status}")
     except Exception as e:
-        print(f"❌ Erro ao notificar Davi (humano) via Z-API: {e}")
+        print(f"❌ Erro ao notificar Davi via Z-API: {e}")
 
 
 # ============================================================================
-# 4. LOOP DO AGENTE (o coração da v3)
+# 4. LOOP DO AGENTE
 # ============================================================================
 
 def executar_agente(
@@ -508,24 +432,10 @@ def executar_agente(
     historico_conversa: List[Dict],
     contador_mensagens: int = 0
 ) -> Tuple[str, str, Dict]:
-    """
-    Loop principal do agente.
-
-    Diferente da v2, aqui o modelo pode:
-    1. Chamar ferramentas (buscar dados, criar lead, etc.)
-    2. Observar o resultado
-    3. Decidir chamar mais ferramentas ou responder
-
-    Esse loop continua até o modelo gerar uma resposta final em texto.
-
-    Returns:
-        (resposta_texto, status, dados_coletados)
-    """
 
     if not SYSTEM_PROMPT:
         return ("Problema técnico. Tente novamente.", "FINALIZADO_ERRO", {})
 
-    # Personaliza o prompt com aviso de limite de mensagens
     prompt = SYSTEM_PROMPT
     if contador_mensagens >= 3:
         prompt += (
@@ -533,11 +443,22 @@ def executar_agente(
             "Se o aluno não demonstrou interesse claro, encerre a conversa com elegância."
         )
 
-    prompt_final = prompt + f"\n\nCONTEXTO DA SESSÃO: O telefone do aluno nesta conversa é {telefone}. Use este valor em TODAS as chamadas de ferramentas quando o campo 'telefone' for necessário." + "\n\nLEMBRETE TÉCNICO OBRIGATÓRIO: Sua resposta deve ser SEMPRE um JSON puro e válido, sem markdown, sem texto antes ou depois. Exemplo: {\"resposta\": \"...\", \"status\": \"CONTINUAR\", \"dados_coletados\": {}}"
+    # ── C2/C3: REMINDER reforçado ────────────────────────────────────────────
+    prompt_final = (
+        prompt
+        + f"\n\nCONTEXTO DA SESSÃO: O telefone do aluno nesta conversa é {telefone}. "
+        "Use este valor em TODAS as chamadas de ferramentas quando o campo 'telefone' for necessário."
+        "\n\nREGRA CRÍTICA — FERRAMENTA + JSON NA MESMA RESPOSTA:"
+        "\n1. Se você precisa chamar uma ferramenta E responder ao aluno, faça os dois na mesma resposta."
+        "\n2. NUNCA espere o aluno confirmar ('ok', 'tá bom') para disparar uma ferramenta. Dispare IMEDIATAMENTE ao decidir."
+        "\n3. Após executar todas as ferramentas necessárias, retorne APENAS o JSON abaixo — sem texto antes, sem texto depois:"
+        '\n{"resposta": "sua mensagem aqui", "status": "CONTINUAR", "dados_coletados": {"nome": null, "fase": null, "usa_flashcards": null, "presta_residencia_esse_ano": null, "maior_dificuldade": null, "status_teste": null}}'
+        "\n4. Se não retornar JSON puro, o sistema quebra e o aluno não recebe nada."
+    )
+
     mensagens = [{"role": "system", "content": prompt_final}] + historico_conversa
 
-    # Loop agente: continua enquanto o modelo quiser usar ferramentas
-    max_iteracoes = 5  # Evita loop infinito
+    max_iteracoes = 5
     for iteracao in range(max_iteracoes):
         print(f"🔄 Iteração do agente #{iteracao + 1}")
 
@@ -551,12 +472,12 @@ def executar_agente(
                     model=MODELO_IA,
                     messages=mensagens,
                     tools=FERRAMENTAS,
-                    tool_choice="auto",  # Modelo decide quando usar ferramentas
-                    temperature=0.5,    # Mais consistente que 0.7
+                    tool_choice="auto",
+                    temperature=0.5,
                     max_tokens=500,
                     timeout=30
                 )
-                break  # Saiu sem erro, para o loop de retry
+                break
 
             except Exception as e:
                 print(f"  ⚠️ Erro na API (tentativa {tentativa}): {e}")
@@ -566,69 +487,65 @@ def executar_agente(
         choice = response.choices[0]
         message = choice.message
 
-        # --- CASO 1: Modelo quer chamar ferramentas ---
+        # CASO 1: modelo quer chamar ferramentas
         if message.tool_calls:
-            # Adiciona a mensagem do assistente (com as tool_calls) ao histórico
             mensagens.append(message)
 
-            # Executa cada ferramenta solicitada
             for tool_call in message.tool_calls:
                 nome_fn = tool_call.function.name
                 args = json.loads(tool_call.function.arguments)
 
-                # Garante que o telefone nunca venha vazio — o modelo às vezes não passa
                 if "telefone" in args and not args.get("telefone"):
                     args["telefone"] = telefone
 
                 print(f"  🔧 Ferramenta: {nome_fn}({json.dumps(args, ensure_ascii=False)})")
 
                 fn = MAPA_FERRAMENTAS.get(nome_fn)
-                if fn:
-                    resultado = fn(**args)
-                else:
-                    resultado = {"erro": f"Ferramenta '{nome_fn}' não encontrada"}
+                resultado = fn(**args) if fn else {"erro": f"Ferramenta '{nome_fn}' não encontrada"}
 
                 print(f"  📤 Resultado: {json.dumps(resultado, ensure_ascii=False)[:200]}")
 
-                # Retorna resultado da ferramenta pro modelo
                 mensagens.append({
                     "role": "tool",
                     "tool_call_id": tool_call.id,
                     "content": json.dumps(resultado, ensure_ascii=False)
                 })
 
-            # Continua o loop para o modelo processar os resultados
             continue
 
-        # --- CASO 2: Modelo gerou resposta final em texto ---
+        # CASO 2: modelo gerou resposta final
         if message.content:
             conteudo = message.content.strip()
 
-            # Tenta parsear como JSON (o prompt pede isso)
+            # ── C1: normaliza \n\n escapado antes de parsear ─────────────────
+            conteudo_normalizado = conteudo.replace("\\n\\n", "\n\n").replace("\\n", "\n")
+
             try:
-                dados_json = json.loads(conteudo)
+                dados_json = json.loads(conteudo_normalizado)
                 resposta = dados_json.get("resposta", "")
                 status = dados_json.get("status", "CONTINUAR")
                 dados_coletados = dados_json.get("dados_coletados", {})
             except json.JSONDecodeError:
-                # Se não veio JSON, usa o texto direto (fallback)
-                print("⚠️ Resposta não é JSON, usando texto direto")
-                resposta = conteudo
-                status = "CONTINUAR"
-                dados_coletados = {}
+                # Fallback: tenta o conteúdo original sem normalização
+                try:
+                    dados_json = json.loads(conteudo)
+                    resposta = dados_json.get("resposta", "")
+                    status = dados_json.get("status", "CONTINUAR")
+                    dados_coletados = dados_json.get("dados_coletados", {})
+                except json.JSONDecodeError:
+                    print("⚠️ Resposta não é JSON, usando texto direto")
+                    resposta = conteudo
+                    status = "CONTINUAR"
+                    dados_coletados = {}
 
-            # Valida status
+            # ── C1: normaliza \n\n no campo resposta (caso venha escapado) ───
+            if isinstance(resposta, str):
+                resposta = resposta.replace("\\n\\n", "\n\n").replace("\\n", "\n")
+
             status_validos = [
-                "CONTINUAR",
-                "CADASTRO_ENVIADO",
-                "ACESSO_LIBERADO",
-                "AGUARDAR_FOLLOW_UP",
-                "PASSAR_HUMANO",
-                "FINALIZADO_SUCESSO",
-                "FINALIZADO_RECUSOU",
-                "FINALIZADO_NAO_QUALIFICADO",
-                "FINALIZADO_INATIVO",
-                "FINALIZADO_ERRO"
+                "CONTINUAR", "CADASTRO_ENVIADO", "ACESSO_LIBERADO", "AGUARDAR_FOLLOW_UP",
+                "PASSAR_HUMANO", "FINALIZADO_SUCESSO", "FINALIZADO_RECUSOU",
+                "FINALIZADO_NAO_QUALIFICADO", "FINALIZADO_INATIVO", "FINALIZADO_ERRO"
             ]
             if status not in status_validos:
                 status = "CONTINUAR"
@@ -636,58 +553,34 @@ def executar_agente(
             print(f"✅ Resposta gerada | Status: {status} | {len(resposta)} chars")
             return (resposta, status, dados_coletados)
 
-        # Se chegou aqui sem texto e sem tool_calls, algo estranho aconteceu
         print("⚠️ Modelo retornou resposta vazia")
         return ("Desculpe, pode repetir?", "CONTINUAR", {})
 
-    # Se esgotou as iterações do loop
     print("⚠️ Loop do agente esgotou iterações")
     return ("Hmm, tive um problema aqui. Pode tentar de novo?", "CONTINUAR", {})
 
 
 # ============================================================================
-# 5. GESTOR DE CONVERSAS (integração com WhatsApp)
+# 5. GESTOR DE CONVERSAS
 # ============================================================================
 
 class GestorConversasMindMed:
-    """
-    Gerencia o ciclo de vida das conversas.
-    Persiste histórico no Supabase e orquestra o agente.
-    """
 
     def processar_mensagem(self, telefone: str, mensagem: str) -> Dict:
-        """
-        Ponto de entrada principal.
-        Chamado toda vez que o aluno enviar uma mensagem.
-
-        Args:
-            telefone: Telefone do aluno (ID único da conversa)
-            mensagem: Texto recebido
-
-        Returns:
-            {"resposta": str, "status": str, "deve_enviar": bool}
-        """
         print(f"\n{'='*60}")
         print(f"📨 Mensagem de {telefone}: {mensagem[:80]}")
 
         try:
-            # 1. Busca ou cria estado da conversa
             estado = self._buscar_estado(telefone)
 
-            # 2. Verifica se a conversa já foi finalizada ou está em pausa
             status_finalizados = [
-                "FINALIZADO_RECUSOU",
-                "FINALIZADO_SUCESSO",
-                "FINALIZADO_INATIVO",
-                "FINALIZADO_NAO_QUALIFICADO",
-                "FINALIZADO_ERRO"
+                "FINALIZADO_RECUSOU", "FINALIZADO_SUCESSO", "FINALIZADO_INATIVO",
+                "FINALIZADO_NAO_QUALIFICADO", "FINALIZADO_ERRO"
             ]
             if estado.get("status_conversa") in status_finalizados:
                 print(f"ℹ️ Conversa já encerrada com status {estado['status_conversa']}")
                 return {"resposta": "", "status": estado["status_conversa"], "deve_enviar": False}
 
-            # Se conversa está com Davi (PASSAR_HUMANO) ou trial aguardando liberação (ACESSO_LIBERADO),
-            # agente não responde. Retoma quando o status for alterado para CONTINUAR no Supabase.
             if estado.get("status_conversa") in ("PASSAR_HUMANO", "ACESSO_LIBERADO"):
                 status_atual = estado["status_conversa"]
                 print(f"ℹ️ Agente em pausa [{status_atual}] para {telefone}")
@@ -702,21 +595,17 @@ class GestorConversasMindMed:
             historico = estado.get("historico", [])
             contador = estado.get("contador_mensagens_alex", 0)
 
-            # 3. Adiciona mensagem do aluno ao histórico
             historico.append({"role": "user", "content": mensagem})
 
-            # 4. Executa o agente
             resposta, status, dados_coletados = executar_agente(
                 telefone=telefone,
                 historico_conversa=historico,
                 contador_mensagens=contador
             )
 
-            # 5. Atualiza histórico com resposta da Bia
             historico.append({"role": "assistant", "content": resposta})
             contador += 1
 
-            # 6. Persiste estado atualizado
             self._salvar_estado(
                 telefone=telefone,
                 historico=historico,
@@ -725,14 +614,12 @@ class GestorConversasMindMed:
                 dados_coletados=dados_coletados
             )
 
-            # 7. Garante notificação ao time em status críticos
-            # FALLBACK: só dispara se o agente NÃO chamou a ferramenta automaticamente
-            # (evita notificação dupla quando o agente já chamou notificar_time_comercial)
+            # Fallback de notificação (segurança caso ferramenta não tenha sido chamada)
             status_anterior = estado.get("status_conversa", "CONTINUAR")
             if status_anterior == "ATIVO":
                 status_anterior = "CONTINUAR"
             status_criticos = ["PASSAR_HUMANO", "ACESSO_LIBERADO", "CADASTRO_ENVIADO", "FINALIZADO_INATIVO", "FINALIZADO_SUCESSO"]
-            tag_ja_salva = estado.get("tag_crm", "")  # se ferramenta foi chamada, tag já está no estado
+            tag_ja_salva = estado.get("tag_crm", "")
             ferramenta_ja_chamou = status in status_criticos and TAGS_STATUS.get(status, "") in tag_ja_salva
             if status in status_criticos and status != status_anterior and not ferramenta_ja_chamou:
                 nome = dados_coletados.get("nome") or estado.get("nome_aluno", "")
@@ -763,7 +650,6 @@ class GestorConversasMindMed:
             }
 
     def _buscar_estado(self, telefone: str) -> Dict:
-        """Busca estado da conversa no Supabase."""
         try:
             resultado = (
                 supabase.table("conversas")
@@ -797,8 +683,6 @@ class GestorConversasMindMed:
         contador: int,
         dados_coletados: Dict
     ):
-        """Salva/atualiza estado da conversa no Supabase."""
-        # Limita histórico às últimas 20 mensagens para controlar custos de tokens
         MAX_HISTORICO = 20
         if len(historico) > MAX_HISTORICO:
             historico = historico[-MAX_HISTORICO:]
@@ -811,39 +695,27 @@ class GestorConversasMindMed:
             "updated_at": datetime.now(timezone.utc).isoformat()
         }
 
-        # Só atualiza campos de dados se foram coletados
-        if dados_coletados.get("nome"):
-            dados["nome_aluno"] = dados_coletados["nome"]
-        if dados_coletados.get("fase"):
-            dados["fase"] = dados_coletados["fase"]
-        if dados_coletados.get("usa_flashcards") is not None:
-            dados["usa_flashcards"] = dados_coletados["usa_flashcards"]
-        if dados_coletados.get("presta_residencia_esse_ano") is not None:
-            dados["presta_residencia_esse_ano"] = dados_coletados["presta_residencia_esse_ano"]
-        if dados_coletados.get("maior_dificuldade"):
-            dados["maior_dificuldade"] = dados_coletados["maior_dificuldade"]
-        if dados_coletados.get("status_teste"):
-            dados["status_teste"] = dados_coletados["status_teste"]
+        if dados_coletados.get("nome"): dados["nome_aluno"] = dados_coletados["nome"]
+        if dados_coletados.get("fase"): dados["fase"] = dados_coletados["fase"]
+        if dados_coletados.get("usa_flashcards") is not None: dados["usa_flashcards"] = dados_coletados["usa_flashcards"]
+        if dados_coletados.get("presta_residencia_esse_ano") is not None: dados["presta_residencia_esse_ano"] = dados_coletados["presta_residencia_esse_ano"]
+        if dados_coletados.get("maior_dificuldade"): dados["maior_dificuldade"] = dados_coletados["maior_dificuldade"]
+        if dados_coletados.get("status_teste"): dados["status_teste"] = dados_coletados["status_teste"]
 
         supabase.table("conversas").upsert(dados, on_conflict="telefone").execute()
 
 
 # ============================================================================
-# 6. SIMULADOR INTERATIVO (para testar localmente)
+# 6. SIMULADOR
 # ============================================================================
 
 def simular_conversa():
-    """Simula uma conversa completa no terminal."""
     print("=" * 65)
-    print("🤖 SIMULADOR - BIA MINDMED v3.0 (Agente IA)")
+    print("🤖 SIMULADOR - BIA MINDMED (Agente IA)")
     print("=" * 65)
-    print("\nℹ️  O agente usará Supabase real se configurado.")
-    print("    Para teste sem banco, configure SUPABASE_URL=mock no .env\n")
 
     telefone = input("📱 Telefone do aluno (Enter = 5511999999999): ").strip() or "5511999999999"
-
     gestor = GestorConversasMindMed()
-    status_final = "CONTINUAR"
 
     print(f"\n💬 Conversa iniciada para {telefone}")
     print("    Digite 'sair' para encerrar\n")
@@ -851,27 +723,21 @@ def simular_conversa():
 
     while True:
         mensagem = input("\n👤 ALUNO: ").strip()
-
-        if not mensagem:
-            continue
+        if not mensagem: continue
         if mensagem.lower() in ["sair", "exit", "quit"]:
             print("\n👋 Simulação encerrada.")
             break
 
         resultado = gestor.processar_mensagem(telefone=telefone, mensagem=mensagem)
-
         print(f"\n🤖 BIA: {resultado['resposta']}")
         print(f"\n📊 Status: {resultado['status']}")
         if resultado.get("dados_coletados") and any(resultado["dados_coletados"].values()):
             print(f"📝 Dados coletados: {resultado['dados_coletados']}")
         print("-" * 65)
 
-        status_final = resultado["status"]
-        if status_final.startswith("FINALIZADO"):
-            print(f"\n✅ Conversa encerrada com status: {status_final}")
+        if resultado["status"].startswith("FINALIZADO"):
+            print(f"\n✅ Conversa encerrada: {resultado['status']}")
             break
-
-    print(f"\n📈 Status final: {status_final}")
 
 
 # ============================================================================
@@ -880,5 +746,3 @@ def simular_conversa():
 
 if __name__ == "__main__":
     simular_conversa()
-
-
