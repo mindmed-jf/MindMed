@@ -9,8 +9,7 @@ import httpx
 import asyncio
 import hashlib
 import logging
-from datetime import datetime
-from collections import OrderedDict
+from datetime import datetime, timezone, timedelta
 from typing import Optional
 
 from fastapi import FastAPI, Request, Response, HTTPException, BackgroundTasks
@@ -21,6 +20,7 @@ from dotenv import load_dotenv
 
 from agente_mindmed import GestorConversasMindMed
 from followup_scheduler import iniciar_scheduler
+from supabase import create_client, Client as SupabaseClient
 
 load_dotenv(override=True)
 
@@ -39,6 +39,12 @@ app = FastAPI(title="MindMed API", version="3.0")
 gestor = GestorConversasMindMed()
 _scheduler_task = None
 
+# Supabase — usado para deduplicação distribuída
+_supabase_dedup: SupabaseClient = create_client(
+    os.getenv("SUPABASE_URL", ""),
+    os.getenv("SUPABASE_KEY", "")
+)
+
 app.mount("/static", StaticFiles(directory="."), name="static")
 
 @app.get("/painel")
@@ -51,9 +57,8 @@ ZAPI_TOKEN        = os.getenv("ZAPI_TOKEN", "")
 ZAPI_CLIENT_TOKEN = os.getenv("ZAPI_CLIENT_TOKEN", "")
 ZAPI_BASE_URL     = f"https://api.z-api.io/instances/{ZAPI_INSTANCE_ID}/token/{ZAPI_TOKEN}"
 
-# Cache de deduplicação
-_cache_mensagens: OrderedDict = OrderedDict()
-DEDUP_TTL_SEGUNDOS = 15
+# Cache de deduplicação — via Supabase (compartilhado entre todos os workers)
+DEDUP_TTL_SEGUNDOS = 30
 
 
 @app.on_event("startup")
@@ -80,22 +85,43 @@ async def health():
 
 
 # ============================================================================
-# DEDUPLICAÇÃO DE WEBHOOK
+# DEDUPLICAÇÃO DE WEBHOOK — via Supabase (funciona com múltiplos workers)
 # ============================================================================
 
 def ja_processado(telefone: str, texto: str) -> bool:
-    agora = datetime.now().timestamp()
+    """
+    Verifica e registra se essa mensagem já foi processada.
+    Usa o Supabase como store compartilhado — funciona mesmo com múltiplos
+    workers/instâncias no Railway (cache em memória não seria suficiente).
+    """
     chave = hashlib.md5(f"{telefone}:{texto}".encode()).hexdigest()
+    agora = datetime.now(timezone.utc)
+    expira_em = agora + timedelta(seconds=DEDUP_TTL_SEGUNDOS)
 
-    expirados = [k for k, t in _cache_mensagens.items() if agora - t > DEDUP_TTL_SEGUNDOS]
-    for k in expirados:
-        del _cache_mensagens[k]
+    try:
+        # Tenta inserir a chave — se já existir, lança erro de unique constraint
+        _supabase_dedup.table("webhook_dedup").insert({
+            "chave": chave,
+            "expira_em": expira_em.isoformat()
+        }).execute()
 
-    if chave in _cache_mensagens:
-        return True
+        # Limpeza assíncrona de entradas expiradas (best-effort, não bloqueia)
+        try:
+            _supabase_dedup.table("webhook_dedup").delete().lt(
+                "expira_em", agora.isoformat()
+            ).execute()
+        except Exception:
+            pass
 
-    _cache_mensagens[chave] = agora
-    return False
+        return False  # não existia → pode processar
+
+    except Exception as e:
+        erro = str(e).lower()
+        if "duplicate" in erro or "unique" in erro or "23505" in erro:
+            return True  # já existia → duplicata
+        # Erro inesperado no banco — permite processar (melhor duplicata que silêncio)
+        log.warning(f"⚠️ Erro na deduplicação Supabase: {e} — permitindo processamento")
+        return False
 
 
 # ============================================================================
