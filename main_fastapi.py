@@ -60,6 +60,21 @@ ZAPI_BASE_URL     = f"https://api.z-api.io/instances/{ZAPI_INSTANCE_ID}/token/{Z
 # Cache de deduplicação — via Supabase (compartilhado entre todos os workers)
 DEDUP_TTL_SEGUNDOS = 30
 
+# ============================================================================
+# CORREÇÃO #3 — Cache local em memória como segundo nível de deduplicação
+#
+# ANTES: se o Supabase falhava com erro inesperado, ja_processado retornava
+# False e deixava a mensagem passar — causando duplicatas quando a Z-API
+# reenviava o webhook automaticamente durante instabilidades do banco.
+#
+# AGORA: cache local (dict com TTL) bloqueia duplicatas no mesmo worker
+# antes mesmo de consultar o Supabase. Se o banco falhar, o cache local
+# ainda protege contra reenvios da Z-API dentro da janela de 30 segundos.
+# Para múltiplos workers, o Supabase continua sendo a barreira principal
+# quando está estável — o cache local cobre o caso de instabilidade.
+# ============================================================================
+_dedup_cache_local: dict = {}   # {chave_md5: timestamp_expiracao}
+
 
 @app.on_event("startup")
 async def startup_event():
@@ -91,13 +106,30 @@ async def health():
 def ja_processado(telefone: str, texto: str) -> bool:
     """
     Verifica e registra se essa mensagem já foi processada.
-    Usa o Supabase como store compartilhado — funciona mesmo com múltiplos
-    workers/instâncias no Railway (cache em memória não seria suficiente).
+    Dois níveis de proteção:
+      1. Cache local em memória — rápido, protege dentro do mesmo worker
+         mesmo quando o Supabase está instável.
+      2. Supabase — barreira distribuída para múltiplos workers/instâncias.
     """
     chave = hashlib.md5(f"{telefone}:{texto}".encode()).hexdigest()
     agora = datetime.now(timezone.utc)
     expira_em = agora + timedelta(seconds=DEDUP_TTL_SEGUNDOS)
 
+    # --- Nível 1: cache local ---
+    # Limpa entradas expiradas antes de verificar (evita crescimento indefinido)
+    expiradas = [k for k, exp in _dedup_cache_local.items() if exp <= agora]
+    for k in expiradas:
+        del _dedup_cache_local[k]
+
+    if chave in _dedup_cache_local:
+        log.warning(f"⚠️ Duplicata bloqueada pelo cache local | chave: {chave[:8]}...")
+        return True  # já vista neste worker → bloqueia
+
+    # Registra no cache local imediatamente — antes de ir ao banco
+    # Isso garante proteção mesmo se o Supabase demorar ou falhar
+    _dedup_cache_local[chave] = expira_em
+
+    # --- Nível 2: Supabase (barreira distribuída) ---
     try:
         # Tenta inserir a chave — se já existir, lança erro de unique constraint
         _supabase_dedup.table("webhook_dedup").insert({
@@ -105,7 +137,7 @@ def ja_processado(telefone: str, texto: str) -> bool:
             "expira_em": expira_em.isoformat()
         }).execute()
 
-        # Limpeza assíncrona de entradas expiradas (best-effort, não bloqueia)
+        # Limpeza de entradas expiradas no banco (best-effort, não bloqueia)
         try:
             _supabase_dedup.table("webhook_dedup").delete().lt(
                 "expira_em", agora.isoformat()
@@ -113,14 +145,18 @@ def ja_processado(telefone: str, texto: str) -> bool:
         except Exception:
             pass
 
-        return False  # não existia → pode processar
+        return False  # não existia em nenhuma camada → pode processar
 
     except Exception as e:
         erro = str(e).lower()
         if "duplicate" in erro or "unique" in erro or "23505" in erro:
-            return True  # já existia → duplicata
-        # Erro inesperado no banco — permite processar (melhor duplicata que silêncio)
-        log.warning(f"⚠️ Erro na deduplicação Supabase: {e} — permitindo processamento")
+            log.warning(f"⚠️ Duplicata bloqueada pelo Supabase | chave: {chave[:8]}...")
+            return True  # já existia no banco → duplicata de outro worker
+
+        # Erro inesperado no banco — cache local já registrou, então
+        # reenvios no mesmo worker serão bloqueados pela camada 1.
+        # Para outros workers, aceita o risco de duplicata (melhor que silêncio).
+        log.warning(f"⚠️ Erro na deduplicação Supabase: {e} — cache local ativo como fallback")
         return False
 
 
