@@ -101,6 +101,7 @@ Se demonstrar intenção de compra antes de terminar → pule para FECHAMENTO.
 Após aluno avisar que se cadastrou:
 "Ótimo, {nome}! 🎉 Seu cadastro foi registrado. Agora vou solicitar ao time pra liberar seu acesso. A liberação pode levar alguns minutos e o time vai avisar quando estiver pronto!"
 → Chame registrar_acesso_trial (UMA VEZ APENAS por conversa)
+→ Logo em seguida, chame notificar_time_comercial com status ACESSO_LIBERADO para avisar o time que precisa liberar o acesso. Sem essa chamada, o Davi não recebe o alerta e o acesso nunca é liberado.
 
 Tutoriais para enviar em seguida:
 "Enquanto aguarda, dá uma olhada nos tutoriais pra já ir se familiarizando:\n\nTutorial completo: https://youtu.be/vLgAbOlTDhc\nTutorial do Planner: https://youtu.be/Ym9Yx0T8J4w\nPlanner pra usar: https://docs.google.com/spreadsheets/d/1EfG_sDmNtIyZyQ0HKQOKciwL0CNWiLH1rBm8G8hWZVY/copy\n\nQualquer dúvida enquanto testa, é só chamar! 💪"
