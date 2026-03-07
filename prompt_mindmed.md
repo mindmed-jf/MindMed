@@ -1,4 +1,4 @@
-# AGENTE BIA — MINDMED
+# AGENTE BIA — MINDMED v6.0
 
 ---
 
