@@ -122,19 +122,25 @@ def mensagem_followup_1(nome: str) -> str:
     return f"E aí, {n}? 👋\nConseguiu explorar a plataforma? Ficou com alguma dúvida?"
 
 def mensagem_followup_2(nome: str) -> str:
-    """48h — urgência leve, acesso quase acabando."""
+    # CORREÇÃO #10 — antes dizia "tá acabando em breve", mas o acesso de 48h
+    # já expirou nesse ponto. Mensagem ajustada para refletir a realidade
+    # e ainda abrir porta para continuar com um plano pago.
+    """48h — acesso expirado, pergunta o que achou e abre para continuar."""
     prefixo = f"{nome}, " if nome else ""
     return (
-        f"{prefixo}seu acesso de 48h tá acabando em breve! ⏰\n"
-        f"Você conseguiu testar? O que achou?\nQualquer dúvida, tô aqui!"
+        f"{prefixo}seu acesso de teste expirou! ⏰\n"
+        f"Você conseguiu explorar a plataforma? O que achou dos flashcards?\n"
+        f"Se quiser continuar, é só me falar que a gente vê o melhor plano pra você!"
     )
 
 def mensagem_followup_3(nome: str) -> str:
-    """72h — encerramento leve."""
+    # CORREÇÃO #10 — encerramento sem mencionar trial (já expirou há 24h).
+    # Mensagem leve e sem pressão, deixa a porta aberta.
+    """72h — encerramento leve, sem mencionar trial."""
     prefixo = f"{nome}, " if nome else ""
     return (
-        f"{prefixo}tudo bem? 💪\n"
-        f"Se você tiver interesse em continuar com a MindMed, é só chamar. Tô por aqui!"
+        f"{prefixo}tudo bem? 🤙\n"
+        f"Se um dia quiser conhecer a MindMed melhor, é só chamar. Boa sorte nos estudos! 💪"
     )
 
 
