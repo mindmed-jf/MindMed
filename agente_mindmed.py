@@ -248,16 +248,6 @@ def criar_ou_atualizar_lead(
         return {"sucesso": False, "erro": str(e)}
 
 
-# ============================================================================
-# CORREÇÃO #1 — registrar_acesso_trial
-#
-# ANTES: a função chamava notificar_time_comercial internamente, causando
-# dupla notificação quando o agente também chamava a ferramenta separadamente.
-#
-# AGORA: a função apenas atualiza o banco e inicializa contador_followups = -1
-# para o scheduler. A notificação ao time fica exclusivamente com o agente,
-# que chama notificar_time_comercial de forma explícita e controlada.
-# ============================================================================
 def registrar_acesso_trial(
     telefone: str,
     nome_aluno: str = None,
@@ -265,7 +255,6 @@ def registrar_acesso_trial(
     contexto: str = None
 ) -> Dict:
     try:
-        # Atualiza o banco — status e dados do lead
         criar_ou_atualizar_lead(
             telefone=telefone,
             nome=nome_aluno,
@@ -274,9 +263,6 @@ def registrar_acesso_trial(
             status_conversa="ACESSO_LIBERADO"
         )
 
-        # Inicializa contador_followups = -1 para o scheduler enviar o follow-up
-        # de 1h (follow-up 0) corretamente. Sem isso, o scheduler assume 0 e
-        # pula o primeiro follow-up quente.
         supabase.table("conversas").update({
             "contador_followups": -1,
             "updated_at": datetime.now(timezone.utc).isoformat()
@@ -284,8 +270,6 @@ def registrar_acesso_trial(
 
         print(f"✅ Trial registrado no banco para {telefone} | contador_followups = -1")
 
-        # Não notifica o time aqui — o agente chama notificar_time_comercial
-        # separadamente com status ACESSO_LIBERADO, evitando dupla notificação.
         return {
             "sucesso": True,
             "mensagem": (
@@ -452,6 +436,79 @@ def notificar_davi_whatsapp(
 # 4. LOOP DO AGENTE
 # ============================================================================
 
+# ============================================================================
+# STATUS QUE EXIGEM DISPARO PROGRAMÁTICO IMEDIATO
+#
+# Quando o modelo retorna um desses status no JSON final, o código garante
+# a execução das ferramentas críticas sem depender do modelo chamar
+# tool_calls — resolvendo o problema de disparo em duas etapas.
+#
+# Mapeamento:
+#   PASSAR_HUMANO    → notificar_time_comercial (PASSAR_HUMANO)
+#   ACESSO_LIBERADO  → registrar_acesso_trial + notificar_time_comercial (ACESSO_LIBERADO)
+#   CADASTRO_ENVIADO → notificar_time_comercial (CADASTRO_ENVIADO)
+# ============================================================================
+STATUS_DISPARO_IMEDIATO = {"PASSAR_HUMANO", "ACESSO_LIBERADO", "CADASTRO_ENVIADO"}
+
+
+def _disparar_ferramentas_criticas(
+    telefone: str,
+    status: str,
+    dados_coletados: Dict,
+    resumo_notificacao: str,
+    ferramentas_ja_chamadas: set
+) -> None:
+    """
+    Executa programaticamente as ferramentas críticas com base no status
+    retornado pelo modelo, garantindo disparo imediato independente de o
+    modelo ter chamado ou não as tool_calls correspondentes.
+
+    ferramentas_ja_chamadas: conjunto de nomes de ferramentas que o modelo
+    já chamou nesta iteração — evita dupla execução.
+    """
+    nome  = dados_coletados.get("nome")
+    fase  = dados_coletados.get("fase")
+
+    if status == "ACESSO_LIBERADO":
+        # 1. Registra o trial no banco (se modelo não chamou)
+        if "registrar_acesso_trial" not in ferramentas_ja_chamadas:
+            print("🔒 Disparo programático: registrar_acesso_trial")
+            registrar_acesso_trial(
+                telefone=telefone,
+                nome_aluno=nome,
+                fase=fase
+            )
+        else:
+            print("ℹ️ registrar_acesso_trial já chamada pelo modelo — pulando")
+
+        # 2. Notifica o time (sempre garante, mesmo se modelo chamou,
+        #    pois é o passo mais crítico — Davi precisa liberar o acesso)
+        if "notificar_time_comercial" not in ferramentas_ja_chamadas:
+            print("🔒 Disparo programático: notificar_time_comercial (ACESSO_LIBERADO)")
+            notificar_time_comercial(
+                telefone=telefone,
+                nome_aluno=nome,
+                fase=fase,
+                status="ACESSO_LIBERADO",
+                resumo_conversa=resumo_notificacao or "Aluno confirmou cadastro — liberar trial."
+            )
+        else:
+            print("ℹ️ notificar_time_comercial já chamada pelo modelo — pulando")
+
+    elif status in ("PASSAR_HUMANO", "CADASTRO_ENVIADO"):
+        if "notificar_time_comercial" not in ferramentas_ja_chamadas:
+            print(f"🔒 Disparo programático: notificar_time_comercial ({status})")
+            notificar_time_comercial(
+                telefone=telefone,
+                nome_aluno=nome,
+                fase=fase,
+                status=status,
+                resumo_conversa=resumo_notificacao or f"Notificação automática — status: {status}"
+            )
+        else:
+            print("ℹ️ notificar_time_comercial já chamada pelo modelo — pulando")
+
+
 def executar_agente(
     telefone: str,
     historico_conversa: List[Dict],
@@ -476,11 +533,20 @@ def executar_agente(
         "\n1. Se você precisa chamar uma ferramenta E responder ao aluno, faça os dois na mesma resposta."
         "\n2. NUNCA espere o aluno confirmar ('ok', 'tá bom') para disparar uma ferramenta. Dispare IMEDIATAMENTE ao decidir."
         "\n3. Após executar todas as ferramentas necessárias, retorne APENAS o JSON abaixo — sem texto antes, sem texto depois:"
-        '\n{"resposta": "sua mensagem aqui", "status": "CONTINUAR", "dados_coletados": {"nome": null, "fase": null, "usa_flashcards": null, "presta_residencia_esse_ano": null, "maior_dificuldade": null, "status_teste": null}}'
+        '\n{"resposta": "sua mensagem aqui", "status": "CONTINUAR", "resumo_notificacao": null, "dados_coletados": {"nome": null, "fase": null, "usa_flashcards": null, "presta_residencia_esse_ano": null, "maior_dificuldade": null, "status_teste": null}}'
         "\n4. Se não retornar JSON puro, o sistema quebra e o aluno não recebe nada."
+        "\n\nCAMPO resumo_notificacao:"
+        "\nSempre que o status for PASSAR_HUMANO, ACESSO_LIBERADO ou CADASTRO_ENVIADO, preencha"
+        " 'resumo_notificacao' com um texto rico descrevendo o contexto da conversa para o time."
+        " Exemplos: '🔴 LEAD QUER FECHAR — João confirmou interesse. Plataforma fez sentido.'"
+        " ou '📋 PROBLEMA DE CONTEÚDO — João: deck de diabetes desatualizado.'"
+        " Para outros status, deixe resumo_notificacao como null."
     )
 
     mensagens = [{"role": "system", "content": prompt_final}] + historico_conversa
+
+    # Rastreia quais ferramentas o modelo chamou nesta execução
+    ferramentas_chamadas: set = set()
 
     max_iteracoes = 5
     for iteracao in range(max_iteracoes):
@@ -498,9 +564,6 @@ def executar_agente(
                     tools=FERRAMENTAS,
                     tool_choice="auto",
                     temperature=0.5,
-                    # CORREÇÃO #12 — max_tokens aumentado de 500 para 1024.
-                    # Com 500, respostas com múltiplos parágrafos + URL podiam ser
-                    # truncadas no meio, gerando JSON inválido que quebrava o sistema.
                     max_tokens=1024,
                     timeout=30
                 )
@@ -529,6 +592,9 @@ def executar_agente(
                 fn = MAPA_FERRAMENTAS.get(nome_fn)
                 resultado = fn(**args) if fn else {"erro": f"Ferramenta '{nome_fn}' não encontrada"}
 
+                # Registra que essa ferramenta foi chamada pelo modelo
+                ferramentas_chamadas.add(nome_fn)
+
                 print(f"  📤 Resultado: {json.dumps(resultado, ensure_ascii=False)[:200]}")
 
                 mensagens.append({
@@ -548,17 +614,20 @@ def executar_agente(
                 resposta = dados_json.get("resposta", "")
                 status = dados_json.get("status", "CONTINUAR")
                 dados_coletados = dados_json.get("dados_coletados", {})
+                resumo_notificacao = dados_json.get("resumo_notificacao") or ""
             except json.JSONDecodeError:
                 try:
                     dados_json = json.loads(conteudo)
                     resposta = dados_json.get("resposta", "")
                     status = dados_json.get("status", "CONTINUAR")
                     dados_coletados = dados_json.get("dados_coletados", {})
+                    resumo_notificacao = dados_json.get("resumo_notificacao") or ""
                 except json.JSONDecodeError:
                     print("⚠️ Resposta não é JSON, usando texto direto")
                     resposta = conteudo
                     status = "CONTINUAR"
                     dados_coletados = {}
+                    resumo_notificacao = ""
 
             if isinstance(resposta, str):
                 resposta = resposta.replace("\\n\\n", "\n\n").replace("\\n", "\n")
@@ -570,6 +639,20 @@ def executar_agente(
             ]
             if status not in status_validos:
                 status = "CONTINUAR"
+
+            # ================================================================
+            # DISPARO PROGRAMÁTICO — garante execução imediata das ferramentas
+            # críticas sem depender do modelo ter chamado as tool_calls.
+            # Executado ANTES de retornar a resposta ao aluno.
+            # ================================================================
+            if status in STATUS_DISPARO_IMEDIATO:
+                _disparar_ferramentas_criticas(
+                    telefone=telefone,
+                    status=status,
+                    dados_coletados=dados_coletados,
+                    resumo_notificacao=resumo_notificacao,
+                    ferramentas_ja_chamadas=ferramentas_chamadas
+                )
 
             print(f"✅ Resposta gerada | Status: {status} | {len(resposta)} chars")
             return (resposta, status, dados_coletados)
@@ -618,11 +701,6 @@ class GestorConversasMindMed:
 
             historico.append({"role": "user", "content": mensagem})
 
-            # CORREÇÃO #5 — truncar ANTES de passar para o agente.
-            # Antes, o corte para 20 só acontecia no _salvar_estado (depois
-            # da chamada). Isso mandava o histórico completo para a OpenAI em
-            # conversas longas, aumentando custo, latência e risco de estourar
-            # o limite de tokens do modelo.
             MAX_HISTORICO = 20
             if len(historico) > MAX_HISTORICO:
                 historico = historico[-MAX_HISTORICO:]
@@ -644,23 +722,13 @@ class GestorConversasMindMed:
                 dados_coletados=dados_coletados
             )
 
-            # Fallback de notificação (segurança caso ferramenta não tenha sido chamada)
-            status_anterior = estado.get("status_conversa", "CONTINUAR")
-            if status_anterior == "ATIVO":
-                status_anterior = "CONTINUAR"
-            status_criticos = ["PASSAR_HUMANO", "ACESSO_LIBERADO", "CADASTRO_ENVIADO", "FINALIZADO_INATIVO", "FINALIZADO_SUCESSO"]
-            tag_ja_salva = estado.get("tag_crm", "")
-            ferramenta_ja_chamou = status in status_criticos and TAGS_STATUS.get(status, "") in tag_ja_salva
-            if status in status_criticos and status != status_anterior and not ferramenta_ja_chamou:
-                nome = dados_coletados.get("nome") or estado.get("nome_aluno", "")
-                fase = dados_coletados.get("fase") or estado.get("fase", "")
-                notificar_time_comercial(
-                    telefone=telefone,
-                    nome_aluno=nome,
-                    fase=fase,
-                    status=status,
-                    resumo_conversa=f"Status automático detectado pelo sistema: {status}"
-                )
+            # ================================================================
+            # FALLBACK REMOVIDO — o disparo programático em executar_agente
+            # garante a execução das ferramentas críticas antes de retornar.
+            # O fallback aqui era redundante e podia causar dupla notificação
+            # em edge cases onde o modelo chamava a ferramenta E o fallback
+            # disparava também.
+            # ================================================================
 
             print(f"✅ Processado | Status: {status}")
             return {
@@ -690,7 +758,6 @@ class GestorConversasMindMed:
             )
             if resultado.data:
                 return resultado.data[0]
-            # CORREÇÃO #4 (antecipada): status inicial correto é CONTINUAR, não ATIVO
             return {
                 "telefone": telefone,
                 "historico": [],
