@@ -22,6 +22,31 @@ from datetime import datetime, timezone, timedelta
 from dotenv import load_dotenv
 from supabase import create_client, Client
 
+# ============================================================================
+# CORREÇÃO #7 — Fuso horário com zoneinfo em vez de offset fixo UTC-3
+#
+# ANTES: timezone(timedelta(hours=-3)) é um offset fixo que não representa
+# corretamente o fuso de Brasília — depende da configuração do servidor e
+# não considera variações regionais.
+#
+# AGORA: zoneinfo.ZoneInfo("America/Sao_Paulo") é o identificador oficial
+# do fuso de Brasília, robusto e independente da configuração do servidor.
+# Fallback para pytz caso o ambiente não tenha zoneinfo (Python < 3.9).
+# ============================================================================
+try:
+    from zoneinfo import ZoneInfo
+    FUSO_BRASILIA = ZoneInfo("America/Sao_Paulo")
+    print("✅ Fuso horário: zoneinfo.ZoneInfo('America/Sao_Paulo')")
+except ImportError:
+    try:
+        import pytz
+        FUSO_BRASILIA = pytz.timezone("America/Sao_Paulo")
+        print("✅ Fuso horário: pytz ('America/Sao_Paulo') — fallback")
+    except ImportError:
+        # Último recurso: offset fixo UTC-3 (comportamento original)
+        FUSO_BRASILIA = timezone(timedelta(hours=-3))
+        print("⚠️ Fuso horário: offset fixo UTC-3 — instale zoneinfo ou pytz para maior precisão")
+
 load_dotenv(override=True)
 
 # ============================================================================
@@ -29,8 +54,12 @@ load_dotenv(override=True)
 # ============================================================================
 
 def horario_permitido() -> bool:
-    brasilia = timezone(timedelta(hours=-3))
-    agora = datetime.now(brasilia)
+    """
+    Retorna True se o horário atual em Brasília estiver entre 07h e 21h.
+    Usa zoneinfo.ZoneInfo('America/Sao_Paulo') para conversão precisa,
+    independente do fuso configurado no servidor.
+    """
+    agora = datetime.now(FUSO_BRASILIA)
     return 7 <= agora.hour < 21
 
 log = logging.getLogger(__name__)
@@ -48,7 +77,7 @@ ZAPI_CLIENT_TOKEN = os.getenv("ZAPI_CLIENT_TOKEN", "")
 INTERVALO_VERIFICACAO = int(os.getenv("FOLLOWUP_INTERVALO_SEGUNDOS", "900"))
 
 # Timings dos follow-ups (em horas)
-FOLLOWUP_0_HORAS = float(os.getenv("FOLLOWUP_0_HORAS", "1"))    # novo — 1h pós acesso
+FOLLOWUP_0_HORAS = float(os.getenv("FOLLOWUP_0_HORAS", "1"))
 FOLLOWUP_1_HORAS = int(os.getenv("FOLLOWUP_1_HORAS", "24"))
 FOLLOWUP_2_HORAS = int(os.getenv("FOLLOWUP_2_HORAS", "48"))
 FOLLOWUP_3_HORAS = int(os.getenv("FOLLOWUP_3_HORAS", "72"))
@@ -57,6 +86,21 @@ FOLLOWUP_3_HORAS = int(os.getenv("FOLLOWUP_3_HORAS", "72"))
 REENGAJ_1_HORAS = int(os.getenv("REENGAJ_1_HORAS", "48"))
 REENGAJ_2_HORAS = int(os.getenv("REENGAJ_2_HORAS", "96"))
 REENGAJ_3_HORAS = int(os.getenv("REENGAJ_3_HORAS", "144"))
+
+# ============================================================================
+# CORREÇÃO #8 — Número máximo de tentativas para envio Z-API
+#
+# ANTES: sem retry. Se o envio falhasse, o contador não era atualizado
+# (correto), mas não havia nenhuma tentativa adicional na mesma rodada.
+# Na próxima rodada (15 min depois) o scheduler tentaria de novo, o que
+# funcionava acidentalmente, mas sem log claro e sem controle.
+#
+# AGORA: até MAX_TENTATIVAS_ZAPI tentativas com espera exponencial entre
+# elas (1s, 2s). Se todas falharem, o contador não é atualizado e o
+# scheduler tenta novamente na próxima rodada normalmente.
+# ============================================================================
+MAX_TENTATIVAS_ZAPI = int(os.getenv("MAX_TENTATIVAS_ZAPI", "3"))
+ESPERA_RETRY_ZAPI   = float(os.getenv("ESPERA_RETRY_ZAPI_SEGUNDOS", "1.0"))
 
 
 # ============================================================================
@@ -118,27 +162,39 @@ def mensagem_reengaj_3(nome: str) -> str:
 
 
 # ============================================================================
-# ENVIO VIA Z-API
+# ENVIO VIA Z-API — com retry explícito (correção #8)
 # ============================================================================
 
 async def enviar_whatsapp(telefone: str, texto: str) -> bool:
+    """
+    Envia mensagem via Z-API com até MAX_TENTATIVAS_ZAPI tentativas.
+    Espera exponencial entre tentativas (ESPERA_RETRY_ZAPI * tentativa).
+    Retorna True se enviou com sucesso, False se todas as tentativas falharam.
+    """
     if not ZAPI_INSTANCE_ID or not ZAPI_TOKEN:
-        log.warning(f"[SIMULADO] Follow-up para {telefone}: {texto}")
+        log.warning(f"[SIMULADO] Follow-up para {telefone}: {texto[:60]}...")
         return True
 
     url = f"https://api.z-api.io/instances/{ZAPI_INSTANCE_ID}/token/{ZAPI_TOKEN}/send-text"
     payload  = {"phone": telefone, "message": texto}
     headers  = {"Content-Type": "application/json", "client-token": ZAPI_CLIENT_TOKEN}
 
-    try:
-        async with httpx.AsyncClient(timeout=15) as client:
-            response = await client.post(url, json=payload, headers=headers)
-            response.raise_for_status()
-            log.info(f"✅ Follow-up enviado para {telefone}")
-            return True
-    except Exception as e:
-        log.error(f"❌ Erro ao enviar follow-up para {telefone}: {e}")
-        return False
+    for tentativa in range(1, MAX_TENTATIVAS_ZAPI + 1):
+        try:
+            async with httpx.AsyncClient(timeout=15) as client:
+                response = await client.post(url, json=payload, headers=headers)
+                response.raise_for_status()
+                log.info(f"✅ Follow-up enviado para {telefone} (tentativa {tentativa})")
+                return True
+        except Exception as e:
+            if tentativa < MAX_TENTATIVAS_ZAPI:
+                espera = ESPERA_RETRY_ZAPI * tentativa  # 1s, 2s
+                log.warning(f"⚠️ Tentativa {tentativa}/{MAX_TENTATIVAS_ZAPI} falhou para {telefone}: {e} — aguardando {espera}s")
+                await asyncio.sleep(espera)
+            else:
+                log.error(f"❌ Todas as {MAX_TENTATIVAS_ZAPI} tentativas falharam para {telefone}: {e}")
+
+    return False
 
 
 # ============================================================================
@@ -159,7 +215,7 @@ def calcular_horas_sem_resposta(updated_at_str: str) -> float:
 
 
 async def _enviar_followup(conversa: dict, numero: int, mensagem: str):
-    """Envia follow-up e atualiza contador no Supabase."""
+    """Envia follow-up e atualiza contador no Supabase apenas se enviado com sucesso."""
     telefone = conversa.get("telefone")
     nome     = conversa.get("nome_aluno", "")
 
@@ -179,11 +235,13 @@ async def _enviar_followup(conversa: dict, numero: int, mensagem: str):
         supabase.table("conversas").update({
             "contador_followups": numero,
             "status_conversa": "AGUARDAR_FOLLOW_UP",
-            "historico": historico,
+            "historico": historico[-20:],
             "updated_at": datetime.now(timezone.utc).isoformat()
         }).eq("telefone", telefone).execute()
 
         log.info(f"✅ Follow-up {numero} registrado para {telefone}")
+    else:
+        log.warning(f"⚠️ Follow-up {numero} NÃO registrado para {telefone} — envio falhou, será retentado na próxima rodada")
 
 
 async def _finalizar_inativo(telefone: str, nome: str):
@@ -223,16 +281,26 @@ async def processar_followups():
     indicando que o followup 0 ainda não foi enviado.
     """
     if not horario_permitido():
-        log.info("🌙 Fora do horário permitido (07:00-21:00). Follow-ups pausados.")
+        log.info("🌙 Fora do horário permitido (07:00-21:00 horário de Brasília). Follow-ups pausados.")
         return
 
     log.info("🔍 Verificando follow-ups pendentes...")
 
     try:
+        # CORREÇÃO #9 — FINALIZADO_ERRO incluído na busca
+        # Antes, conversas travadas com FINALIZADO_ERRO ficavam no limbo
+        # sem ser retomadas nem notificadas. Agora são incluídas na varredura
+        # para que o scheduler possa identificá-las e registrá-las no log,
+        # facilitando diagnóstico e intervenção manual quando necessário.
         resultado = (
             supabase.table("conversas")
             .select("*")
-            .in_("status_conversa", ["ACESSO_LIBERADO", "AGUARDAR_FOLLOW_UP", "CADASTRO_ENVIADO"])
+            .in_("status_conversa", [
+                "ACESSO_LIBERADO",
+                "AGUARDAR_FOLLOW_UP",
+                "CADASTRO_ENVIADO",
+                "FINALIZADO_ERRO"        # correção #9
+            ])
             .execute()
         )
 
@@ -244,6 +312,19 @@ async def processar_followups():
             nome       = conversa.get("nome_aluno", "")
             updated_at = conversa.get("updated_at", "")
             followup_n = conversa.get("contador_followups", -1)
+            status     = conversa.get("status_conversa", "")
+
+            # CORREÇÃO #9 — trata FINALIZADO_ERRO separadamente:
+            # registra no log para facilitar diagnóstico e pula o processamento
+            # normal de follow-up (não faz sentido mandar mensagem de trial
+            # para uma conversa que terminou em erro técnico).
+            if status == "FINALIZADO_ERRO":
+                log.warning(
+                    f"⚠️ FINALIZADO_ERRO detectado | {telefone} ({nome}) | "
+                    f"updated_at: {updated_at} — requer verificação manual ou "
+                    f"chamada ao endpoint /retomar/{telefone}"
+                )
+                continue
 
             # Normaliza: None ou ausente = -1 (nunca enviou nenhum)
             if followup_n is None:
@@ -351,11 +432,13 @@ async def _enviar_reengajamento(conversa: dict, numero: int, mensagem: str):
 
         supabase.table("conversas").update({
             "contador_reengajamento": numero,
-            "historico": historico,
+            "historico": historico[-20:],
             "updated_at": datetime.now(timezone.utc).isoformat()
         }).eq("telefone", telefone).execute()
 
         log.info(f"✅ Reengajamento {numero} registrado para {telefone}")
+    else:
+        log.warning(f"⚠️ Reengajamento {numero} NÃO registrado para {telefone} — será retentado na próxima rodada")
 
 
 # ============================================================================
@@ -366,6 +449,8 @@ async def iniciar_scheduler():
     log.info(f"🚀 Follow-up Scheduler iniciado")
     log.info(f"   Intervalo: {INTERVALO_VERIFICACAO}s ({INTERVALO_VERIFICACAO//60} min)")
     log.info(f"   Follow-ups: 0={FOLLOWUP_0_HORAS}h | 1={FOLLOWUP_1_HORAS}h | 2={FOLLOWUP_2_HORAS}h | 3={FOLLOWUP_3_HORAS}h")
+    log.info(f"   Fuso horário: America/Sao_Paulo")
+    log.info(f"   Retry Z-API: {MAX_TENTATIVAS_ZAPI} tentativas, espera {ESPERA_RETRY_ZAPI}s base")
 
     while True:
         try:
