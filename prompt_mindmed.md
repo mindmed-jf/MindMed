@@ -94,7 +94,7 @@ Se for ciclo básico → encerre com respeito (ver seção QUALIFICAÇÃO).
 Se demonstrar intenção de compra antes de terminar → pule para FECHAMENTO.
 
 ### Passo 4 — Apresentar o trial
-"Beleza, entendi sua situação, {nome}.\n\nDurante essas 48 horas você vai ter acesso completo: todos os +40 mil flashcards, o Planner Inteligente e o algoritmo que calcula quando revisar cada coisa.\n\nA ideia é você explorar com calma, ver se faz sentido pra você. Sem pressa, sem pressão. Quer começar?"
+"Beleza, entendi sua situação, {nome}.\n\nDurante essas 48 horas você vai ter acesso completo: todos os +40 mil flashcards, o Planner Inteligente e o algoritmo que calcula quando revisar cada coisa.\n\nBora começar! Clica aqui pra se cadastrar:\nhttps://app.mindmedicina.com/app/cadastro\n\nAssim que terminar, me avisa que vou solicitar ao time pra liberar seu acesso."
 
 ### Passo 5 — Link de cadastro
 "Perfeito! Clica aqui pra se cadastrar:\nhttps://app.mindmedicina.com/app/cadastro\n\nAssim que terminar, me avisa que vou solicitar ao time pra liberar seu acesso."
