@@ -29,7 +29,7 @@ supabase: Client = create_client(
 )
 
 # Config
-MODELO_IA = "gpt-4o-mini" 
+MODELO_IA = "gpt-4o-mini"
 MAX_TENTATIVAS_API = 3
 WEBHOOK_NOTIFICACAO = os.getenv("WEBHOOK_NOTIFICACAO_URL", "")
 DAVI_WHATSAPP = os.getenv("DAVI_WHATSAPP", "")
@@ -122,10 +122,13 @@ FERRAMENTAS = [
         "function": {
             "name": "registrar_acesso_trial",
             "description": (
-                "Registra que o link de cadastro foi enviado ao aluno e notifica "
-                "o time para liberar o acesso de 48h na plataforma. "
-                "Use APÓS enviar o link https://app.mindmedicina.com/app/cadastro ao aluno "
-                "e ele confirmar que se cadastrou."
+                "Registra que o aluno se cadastrou e atualiza o banco para liberar "
+                "o acesso de 48h na plataforma. "
+                "Use APÓS o aluno confirmar que se cadastrou em "
+                "https://app.mindmedicina.com/app/cadastro. "
+                "ATENÇÃO: esta função apenas atualiza o banco. "
+                "Para notificar o time, chame notificar_time_comercial separadamente "
+                "com status ACESSO_LIBERADO."
             ),
             "parameters": {
                 "type": "object",
@@ -245,6 +248,16 @@ def criar_ou_atualizar_lead(
         return {"sucesso": False, "erro": str(e)}
 
 
+# ============================================================================
+# CORREÇÃO #1 — registrar_acesso_trial
+#
+# ANTES: a função chamava notificar_time_comercial internamente, causando
+# dupla notificação quando o agente também chamava a ferramenta separadamente.
+#
+# AGORA: a função apenas atualiza o banco e inicializa contador_followups = -1
+# para o scheduler. A notificação ao time fica exclusivamente com o agente,
+# que chama notificar_time_comercial de forma explícita e controlada.
+# ============================================================================
 def registrar_acesso_trial(
     telefone: str,
     nome_aluno: str = None,
@@ -252,6 +265,7 @@ def registrar_acesso_trial(
     contexto: str = None
 ) -> Dict:
     try:
+        # Atualiza o banco — status e dados do lead
         criar_ou_atualizar_lead(
             telefone=telefone,
             nome=nome_aluno,
@@ -259,15 +273,26 @@ def registrar_acesso_trial(
             status_teste="testando",
             status_conversa="ACESSO_LIBERADO"
         )
-        notificar_time_comercial(
-            telefone=telefone,
-            nome_aluno=nome_aluno,
-            fase=fase,
-            status="ACESSO_LIBERADO",
-            resumo_conversa=contexto or "Aluno se cadastrou. Liberar acesso de 48h na plataforma."
-        )
-        print(f"✅ Trial registrado para {telefone}")
-        return {"sucesso": True, "mensagem": "Time notificado para liberar acesso de 48h."}
+
+        # Inicializa contador_followups = -1 para o scheduler enviar o follow-up
+        # de 1h (follow-up 0) corretamente. Sem isso, o scheduler assume 0 e
+        # pula o primeiro follow-up quente.
+        supabase.table("conversas").update({
+            "contador_followups": -1,
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        }).eq("telefone", telefone).execute()
+
+        print(f"✅ Trial registrado no banco para {telefone} | contador_followups = -1")
+
+        # Não notifica o time aqui — o agente chama notificar_time_comercial
+        # separadamente com status ACESSO_LIBERADO, evitando dupla notificação.
+        return {
+            "sucesso": True,
+            "mensagem": (
+                "Cadastro registrado. Agora chame notificar_time_comercial "
+                "com status ACESSO_LIBERADO para avisar o time."
+            )
+        }
     except Exception as e:
         print(f"❌ Erro ao registrar trial: {e}")
         return {"sucesso": False, "erro": str(e)}
@@ -443,7 +468,6 @@ def executar_agente(
             "Se o aluno não demonstrou interesse claro, encerre a conversa com elegância."
         )
 
-    # ── C2/C3: REMINDER reforçado ────────────────────────────────────────────
     prompt_final = (
         prompt
         + f"\n\nCONTEXTO DA SESSÃO: O telefone do aluno nesta conversa é {telefone}. "
@@ -487,7 +511,6 @@ def executar_agente(
         choice = response.choices[0]
         message = choice.message
 
-        # CASO 1: modelo quer chamar ferramentas
         if message.tool_calls:
             mensagens.append(message)
 
@@ -513,11 +536,8 @@ def executar_agente(
 
             continue
 
-        # CASO 2: modelo gerou resposta final
         if message.content:
             conteudo = message.content.strip()
-
-            # ── C1: normaliza \n\n escapado antes de parsear ─────────────────
             conteudo_normalizado = conteudo.replace("\\n\\n", "\n\n").replace("\\n", "\n")
 
             try:
@@ -526,7 +546,6 @@ def executar_agente(
                 status = dados_json.get("status", "CONTINUAR")
                 dados_coletados = dados_json.get("dados_coletados", {})
             except json.JSONDecodeError:
-                # Fallback: tenta o conteúdo original sem normalização
                 try:
                     dados_json = json.loads(conteudo)
                     resposta = dados_json.get("resposta", "")
@@ -538,7 +557,6 @@ def executar_agente(
                     status = "CONTINUAR"
                     dados_coletados = {}
 
-            # ── C1: normaliza \n\n no campo resposta (caso venha escapado) ───
             if isinstance(resposta, str):
                 resposta = resposta.replace("\\n\\n", "\n\n").replace("\\n", "\n")
 
@@ -660,10 +678,11 @@ class GestorConversasMindMed:
             )
             if resultado.data:
                 return resultado.data[0]
+            # CORREÇÃO #4 (antecipada): status inicial correto é CONTINUAR, não ATIVO
             return {
                 "telefone": telefone,
                 "historico": [],
-                "status_conversa": "ATIVO",
+                "status_conversa": "CONTINUAR",
                 "contador_mensagens_alex": 0
             }
         except Exception as e:
@@ -671,7 +690,7 @@ class GestorConversasMindMed:
             return {
                 "telefone": telefone,
                 "historico": [],
-                "status_conversa": "ATIVO",
+                "status_conversa": "CONTINUAR",
                 "contador_mensagens_alex": 0
             }
 
