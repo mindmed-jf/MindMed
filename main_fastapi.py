@@ -1,11 +1,6 @@
 """
 Servidor FastAPI - MindMed v3.0
 Recebe webhooks do WhatsApp via Z-API e processa com o agente IA.
-
-Endpoints:
-    POST /webhook/zapi   → Recebe mensagens da Z-API
-    GET  /health         → Health check
-    POST /teste/mensagem → Teste manual sem WhatsApp
 """
 
 import os
@@ -44,7 +39,6 @@ app = FastAPI(title="MindMed API", version="3.0")
 gestor = GestorConversasMindMed()
 _scheduler_task = None
 
-# Serve arquivos estáticos (painel, logo, etc.)
 app.mount("/static", StaticFiles(directory="."), name="static")
 
 @app.get("/painel")
@@ -57,7 +51,7 @@ ZAPI_TOKEN        = os.getenv("ZAPI_TOKEN", "")
 ZAPI_CLIENT_TOKEN = os.getenv("ZAPI_CLIENT_TOKEN", "")
 ZAPI_BASE_URL     = f"https://api.z-api.io/instances/{ZAPI_INSTANCE_ID}/token/{ZAPI_TOKEN}"
 
-# Cache de deduplicação — evita processar o mesmo webhook 2x
+# Cache de deduplicação
 _cache_mensagens: OrderedDict = OrderedDict()
 DEDUP_TTL_SEGUNDOS = 15
 
@@ -90,25 +84,52 @@ async def health():
 # ============================================================================
 
 def ja_processado(telefone: str, texto: str) -> bool:
-    """
-    Verifica se essa mensagem já foi processada nos últimos 15s.
-    Evita duplicatas quando a Z-API dispara o webhook mais de uma vez.
-    Usa MD5 do par telefone+texto como chave — leve e suficiente.
-    """
     agora = datetime.now().timestamp()
     chave = hashlib.md5(f"{telefone}:{texto}".encode()).hexdigest()
 
-    # Limpa entradas expiradas antes de verificar
     expirados = [k for k, t in _cache_mensagens.items() if agora - t > DEDUP_TTL_SEGUNDOS]
     for k in expirados:
         del _cache_mensagens[k]
 
-    # Se já existe no cache, é duplicata
     if chave in _cache_mensagens:
         return True
 
-    # Registra no cache e permite processar
     _cache_mensagens[chave] = agora
+    return False
+
+
+# ============================================================================
+# DETECÇÃO DE MENSAGEM DE GRUPO
+# ============================================================================
+
+def eh_mensagem_de_grupo(body: dict) -> bool:
+    """
+    Detecta mensagens de grupo de forma robusta.
+    A Z-API pode indicar grupos de diferentes formas dependendo da versão.
+    """
+    # Forma 1: campo direto isGroupMsg = true
+    if body.get("isGroupMsg") is True:
+        return True
+
+    # Forma 2: phone contém @g.us (identificador de grupo do WhatsApp)
+    telefone_raw = body.get("phone", "")
+    if "@g.us" in telefone_raw:
+        return True
+
+    # Forma 3: chatId ou from contém @g.us
+    if "@g.us" in body.get("chatId", ""):
+        return True
+    if "@g.us" in body.get("from", ""):
+        return True
+
+    # Forma 4: campo groupId presente e preenchido
+    if body.get("groupId"):
+        return True
+
+    # Forma 5: participantPhone presente (indica que veio de um grupo)
+    if body.get("participantPhone"):
+        return True
+
     return False
 
 
@@ -120,17 +141,7 @@ def ja_processado(telefone: str, texto: str) -> bool:
 async def receber_zapi(request: Request, background_tasks: BackgroundTasks):
     """
     Recebe mensagens de WhatsApp via Z-API.
-
-    Z-API envia JSON com o seguinte formato:
-    {
-      "phone": "5511999999999",
-      "isGroupMsg": false,
-      "isStatusReply": false,
-      "text": { "message": "texto da mensagem" },
-      "type": "ReceivedCallback"
-    }
     """
-    # Verificação do security token (opcional mas recomendado)
     client_token = request.headers.get("client-token", "")
     if ZAPI_CLIENT_TOKEN and client_token and client_token != ZAPI_CLIENT_TOKEN:
         log.warning("⚠️ Token de segurança inválido recebido no webhook")
@@ -143,8 +154,10 @@ async def receber_zapi(request: Request, background_tasks: BackgroundTasks):
 
     log.debug(f"Webhook Z-API recebido: {json.dumps(body)[:200]}")
 
-    # Ignora mensagens de grupo
-    if body.get("isGroupMsg", False):
+    # ── Ignora mensagens de grupo (verificação robusta) ──────────────────────
+    if eh_mensagem_de_grupo(body):
+        telefone_raw = body.get("phone", "")
+        log.info(f"🚫 Mensagem de grupo ignorada | {telefone_raw[:30]}")
         return JSONResponse({"status": "ignored", "reason": "group_message"})
 
     # Ignora mensagens de newsletter/broadcast
@@ -157,14 +170,13 @@ async def receber_zapi(request: Request, background_tasks: BackgroundTasks):
     if tipo not in ("ReceivedCallback",):
         return JSONResponse({"status": "ignored", "reason": f"type_{tipo}"})
 
-    # Ignora mensagens do próprio bot (enviadas por nós)
+    # Ignora mensagens do próprio bot
     if body.get("fromMe", False):
         return JSONResponse({"status": "ignored", "reason": "own_message"})
 
     # Extrai telefone e texto
     telefone = body.get("phone", "").replace("+", "").replace(" ", "")
 
-    # Texto pode vir em diferentes formatos dependendo do tipo de mensagem
     texto = ""
     if body.get("text"):
         texto = body["text"].get("message", "").strip()
@@ -174,7 +186,7 @@ async def receber_zapi(request: Request, background_tasks: BackgroundTasks):
     if not telefone or not texto:
         return JSONResponse({"status": "ignored", "reason": "no_text_or_phone"})
 
-    # Deduplicação — ignora se já processamos essa mensagem recentemente
+    # Deduplicação
     if ja_processado(telefone, texto):
         log.warning(f"⚠️ Mensagem duplicada ignorada | {telefone}: {texto[:40]}")
         return JSONResponse({"status": "ignored", "reason": "duplicate"})
@@ -206,6 +218,9 @@ async def processar_e_responder_zapi(telefone: str, mensagem: str):
 
 def dividir_mensagem(texto: str) -> list:
     """Divide mensagens longas em partes para parecer mais humano."""
+    # Normaliza \n\n escapado antes de dividir
+    texto = texto.replace("\\n\\n", "\n\n").replace("\\n", "\n")
+
     if len(texto) <= 120:
         return [texto.strip()]
     partes = [p.strip() for p in texto.split("\n\n") if p.strip()]
@@ -220,11 +235,6 @@ def dividir_mensagem(texto: str) -> list:
 
 
 def calcular_typing(texto: str) -> int:
-    """
-    Calcula segundos de 'digitando...' proporcional ao tamanho do texto.
-    Simula velocidade humana de digitação (~4 palavras por segundo).
-    Min: 2s | Max: 10s
-    """
     palavras = len(texto.split())
     segundos = round(palavras * 0.25)
     return min(max(segundos, 2), 10)
@@ -266,15 +276,11 @@ async def enviar_mensagem_zapi(telefone: str, texto: str):
 
 
 # ============================================================================
-# ENDPOINT DE RETOMAR AGENTE (usado pelo painel)
+# ENDPOINT DE RETOMAR AGENTE
 # ============================================================================
 
 @app.post("/retomar/{telefone}")
 async def retomar_agente(telefone: str):
-    """
-    Retoma o agente para uma conversa que estava em pausa (PASSAR_HUMANO).
-    Chamado pelo painel quando Davi termina o atendimento manual.
-    """
     from supabase import create_client
     supabase = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY"))
 
@@ -306,7 +312,6 @@ class MensagemTeste(BaseModel):
 
 @app.post("/teste/mensagem")
 async def testar_mensagem(body: MensagemTeste):
-    """Testa o agente via HTTP sem precisar do WhatsApp."""
     log.info(f"🧪 Teste manual | {body.telefone}: {body.mensagem}")
     resultado = gestor.processar_mensagem(
         telefone=body.telefone,
