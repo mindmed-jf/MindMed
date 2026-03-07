@@ -498,7 +498,10 @@ def executar_agente(
                     tools=FERRAMENTAS,
                     tool_choice="auto",
                     temperature=0.5,
-                    max_tokens=500,
+                    # CORREÇÃO #12 — max_tokens aumentado de 500 para 1024.
+                    # Com 500, respostas com múltiplos parágrafos + URL podiam ser
+                    # truncadas no meio, gerando JSON inválido que quebrava o sistema.
+                    max_tokens=1024,
                     timeout=30
                 )
                 break
