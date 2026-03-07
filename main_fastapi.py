@@ -1,5 +1,5 @@
 """
-Servidor FastAPI - MindMed v3.0
+Servidor FastAPI - MindMed
 Recebe webhooks do WhatsApp via Z-API e processa com o agente IA.
 """
 
