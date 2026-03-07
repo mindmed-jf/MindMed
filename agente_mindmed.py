@@ -615,6 +615,15 @@ class GestorConversasMindMed:
 
             historico.append({"role": "user", "content": mensagem})
 
+            # CORREÇÃO #5 — truncar ANTES de passar para o agente.
+            # Antes, o corte para 20 só acontecia no _salvar_estado (depois
+            # da chamada). Isso mandava o histórico completo para a OpenAI em
+            # conversas longas, aumentando custo, latência e risco de estourar
+            # o limite de tokens do modelo.
+            MAX_HISTORICO = 20
+            if len(historico) > MAX_HISTORICO:
+                historico = historico[-MAX_HISTORICO:]
+
             resposta, status, dados_coletados = executar_agente(
                 telefone=telefone,
                 historico_conversa=historico,
