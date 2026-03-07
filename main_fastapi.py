@@ -133,29 +133,19 @@ def eh_mensagem_de_grupo(body: dict) -> bool:
     Detecta mensagens de grupo de forma robusta.
     A Z-API pode indicar grupos de diferentes formas dependendo da versão.
     """
-    # Forma 1: campo direto isGroupMsg = true
     if body.get("isGroupMsg") is True:
         return True
-
-    # Forma 2: phone contém @g.us (identificador de grupo do WhatsApp)
     telefone_raw = body.get("phone", "")
     if "@g.us" in telefone_raw:
         return True
-
-    # Forma 3: chatId ou from contém @g.us
     if "@g.us" in body.get("chatId", ""):
         return True
     if "@g.us" in body.get("from", ""):
         return True
-
-    # Forma 4: campo groupId presente e preenchido
     if body.get("groupId"):
         return True
-
-    # Forma 5: participantPhone presente (indica que veio de um grupo)
     if body.get("participantPhone"):
         return True
-
     return False
 
 
@@ -180,18 +170,18 @@ async def receber_zapi(request: Request, background_tasks: BackgroundTasks):
 
     log.debug(f"Webhook Z-API recebido: {json.dumps(body)[:200]}")
 
-    # ── Ignora mensagens de grupo (verificação robusta) ──────────────────────
+    # Ignora mensagens de grupo
     if eh_mensagem_de_grupo(body):
         telefone_raw = body.get("phone", "")
         log.info(f"🚫 Mensagem de grupo ignorada | {telefone_raw[:30]}")
         return JSONResponse({"status": "ignored", "reason": "group_message"})
 
-    # Ignora mensagens de newsletter/broadcast
+    # Ignora newsletter/broadcast
     telefone_raw = body.get("phone", "")
     if "@newsletter" in telefone_raw or "@broadcast" in telefone_raw:
         return JSONResponse({"status": "ignored", "reason": "newsletter"})
 
-    # Ignora status updates e confirmações de entrega
+    # Ignora tipos que não são mensagens recebidas
     tipo = body.get("type", "")
     if tipo not in ("ReceivedCallback",):
         return JSONResponse({"status": "ignored", "reason": f"type_{tipo}"})
@@ -200,8 +190,15 @@ async def receber_zapi(request: Request, background_tasks: BackgroundTasks):
     if body.get("fromMe", False):
         return JSONResponse({"status": "ignored", "reason": "own_message"})
 
-    # Extrai telefone e texto
-    telefone = body.get("phone", "").replace("+", "").replace(" ", "")
+    # Extrai e normaliza telefone — remove sufixos que a Z-API pode incluir
+    # ex: "5511999999999@c.us" → "5511999999999"
+    telefone = (
+        body.get("phone", "")
+        .split("@")[0]          # remove @c.us ou qualquer sufixo
+        .replace("+", "")
+        .replace(" ", "")
+        .strip()
+    )
 
     texto = ""
     if body.get("text"):
@@ -228,10 +225,28 @@ async def receber_zapi(request: Request, background_tasks: BackgroundTasks):
     return JSONResponse({"status": "received"})
 
 
+# ============================================================================
+# CORREÇÃO #2 — Bloqueio síncrono no servidor assíncrono
+#
+# ANTES: gestor.processar_mensagem() era chamado diretamente dentro de uma
+# coroutine async, bloqueando o event loop inteiro do FastAPI por 3-8 segundos
+# enquanto o agente aguardava resposta da OpenAI e do Supabase. Com múltiplos
+# usuários simultâneos, o servidor travava e mensagens ficavam na fila.
+#
+# AGORA: asyncio.to_thread() executa a função síncrona em uma thread do pool
+# do sistema operacional, liberando o event loop para continuar atendendo
+# outras requisições enquanto o agente processa em paralelo.
+# ============================================================================
 async def processar_e_responder_zapi(telefone: str, mensagem: str):
     """Processa a mensagem com o agente e envia resposta via Z-API."""
     try:
-        resultado = gestor.processar_mensagem(telefone=telefone, mensagem=mensagem)
+        # gestor.processar_mensagem é síncrono (OpenAI + Supabase bloqueantes).
+        # asyncio.to_thread roda em thread separada sem bloquear o event loop.
+        resultado = await asyncio.to_thread(
+            gestor.processar_mensagem,
+            telefone=telefone,
+            mensagem=mensagem
+        )
 
         if resultado.get("deve_enviar") and resultado.get("resposta"):
             await enviar_mensagem_zapi(
@@ -244,7 +259,6 @@ async def processar_e_responder_zapi(telefone: str, mensagem: str):
 
 def dividir_mensagem(texto: str) -> list:
     """Divide mensagens longas em partes para parecer mais humano."""
-    # Normaliza \n\n escapado antes de dividir
     texto = texto.replace("\\n\\n", "\n\n").replace("\\n", "\n")
 
     if len(texto) <= 120:
@@ -339,7 +353,9 @@ class MensagemTeste(BaseModel):
 @app.post("/teste/mensagem")
 async def testar_mensagem(body: MensagemTeste):
     log.info(f"🧪 Teste manual | {body.telefone}: {body.mensagem}")
-    resultado = gestor.processar_mensagem(
+    # Mesmo endpoint de teste também usa to_thread para consistência
+    resultado = await asyncio.to_thread(
+        gestor.processar_mensagem,
         telefone=body.telefone,
         mensagem=body.mensagem
     )
