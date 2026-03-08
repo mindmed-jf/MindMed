@@ -850,6 +850,16 @@ class GestorConversasMindMed:
         if len(historico) > MAX_HISTORICO:
             historico = historico[-MAX_HISTORICO:]
 
+        # Não rebaixar status críticos — se o banco já tem ACESSO_LIBERADO ou
+        # PASSAR_HUMANO, preserva esse valor independente do que o modelo retornou.
+        STATUS_CRITICOS = {"ACESSO_LIBERADO", "PASSAR_HUMANO"}
+        try:
+            estado_atual = self._buscar_estado(telefone)
+            if estado_atual.get("status_conversa") in STATUS_CRITICOS:
+                status = estado_atual["status_conversa"]
+        except Exception:
+            pass
+
         dados = {
             "telefone": telefone,
             "historico": historico,
