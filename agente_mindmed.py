@@ -6,6 +6,7 @@ Sistema de Agente IA - Bia MindMed
 """
 
 import os
+import re
 import json
 import time
 import httpx
@@ -21,14 +22,12 @@ load_dotenv(override=True)
 # 1. CONFIGURAÇÃO
 # ============================================================================
 
-# Clientes
 openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 supabase: Client = create_client(
     os.getenv("SUPABASE_URL"),
     os.getenv("SUPABASE_KEY")
 )
 
-# Config
 MODELO_IA = "gpt-4o-mini"
 MAX_TENTATIVAS_API = 3
 WEBHOOK_NOTIFICACAO = os.getenv("WEBHOOK_NOTIFICACAO_URL", "")
@@ -196,6 +195,7 @@ TAGS_STATUS = {
     "FINALIZADO_INATIVO":         "⚫ INATIVO",
     "FINALIZADO_ERRO":            "❌ ERRO",
 }
+
 
 def buscar_dados_aluno(telefone: str) -> Dict:
     try:
@@ -438,17 +438,54 @@ def notificar_davi_whatsapp(
 
 # ============================================================================
 # STATUS QUE EXIGEM DISPARO PROGRAMÁTICO IMEDIATO
-#
-# Quando o modelo retorna um desses status no JSON final, o código garante
-# a execução das ferramentas críticas sem depender do modelo chamar
-# tool_calls — resolvendo o problema de disparo em duas etapas.
-#
-# Mapeamento:
-#   PASSAR_HUMANO    → notificar_time_comercial (PASSAR_HUMANO)
-#   ACESSO_LIBERADO  → registrar_acesso_trial + notificar_time_comercial (ACESSO_LIBERADO)
-#   CADASTRO_ENVIADO → notificar_time_comercial (CADASTRO_ENVIADO)
 # ============================================================================
 STATUS_DISPARO_IMEDIATO = {"PASSAR_HUMANO", "ACESSO_LIBERADO", "CADASTRO_ENVIADO"}
+
+
+# ============================================================================
+# EXTRAÇÃO DE NOME DO HISTÓRICO — terceira camada de fallback
+#
+# Varre as mensagens do aluno em ordem reversa procurando padrões comuns
+# de apresentação. Usado quando dados_coletados e estado não têm o nome.
+# ============================================================================
+def _extrair_nome_do_historico(historico: List[Dict]) -> Optional[str]:
+    """
+    Detecta padrões como:
+      - "Meu nome é João"  /  "Me chamo João"  /  "Sou o João"
+      - Mensagem curta que parece só um nome próprio (ex: "João Carlos")
+    Retorna o nome encontrado ou None.
+    """
+    # Padrão 1: frases de apresentação (case-insensitive)
+    padrao_frase = re.compile(
+        r"(?:meu nome (?:é|e)|me chamo|sou o|sou a|pode me chamar de)\s+([A-ZÀ-Ú][a-zà-ú]+(?:\s+[A-ZÀ-Ú][a-zà-ú]+)*)",
+        re.IGNORECASE
+    )
+    # Padrão 2: mensagem curta que parece só um nome próprio — sem IGNORECASE
+    # para exigir letra maiúscula e evitar casar palavras comuns como "oi", "sim"
+    padrao_nome_curto = re.compile(
+        r"^([A-ZÀ-Ú][a-zà-ú]+(?:\s+[A-ZÀ-Ú][a-zà-ú]+)*)$"
+    )
+
+    for msg in reversed(historico):
+        if msg.get("role") != "user":
+            continue
+        texto = msg.get("content", "").strip()
+
+        match = padrao_frase.search(texto)
+        if match:
+            nome = match.group(1).strip()
+            if 1 <= len(nome.split()) <= 4:
+                print(f"🔍 Nome extraído do histórico (frase): {nome!r}")
+                return nome
+
+        match = padrao_nome_curto.match(texto)
+        if match:
+            nome = match.group(1).strip()
+            if 1 <= len(nome.split()) <= 4:
+                print(f"🔍 Nome extraído do histórico (nome curto): {nome!r}")
+                return nome
+
+    return None
 
 
 def _disparar_ferramentas_criticas(
@@ -456,39 +493,45 @@ def _disparar_ferramentas_criticas(
     status: str,
     dados_coletados: Dict,
     resumo_notificacao: str,
-    ferramentas_ja_chamadas: set
+    ferramentas_ja_chamadas: set,
+    estado: Dict = None,
+    historico_conversa: List[Dict] = None
 ) -> None:
     """
     Executa programaticamente as ferramentas críticas com base no status
     retornado pelo modelo, garantindo disparo imediato independente de o
     modelo ter chamado ou não as tool_calls correspondentes.
 
-    ferramentas_ja_chamadas: conjunto de nomes de ferramentas que o modelo
-    já chamou nesta iteração — evita dupla execução.
+    Resolução de nome — três camadas em ordem de prioridade:
+      1. dados_coletados["nome"]       — modelo preencheu corretamente no JSON
+      2. estado["nome_aluno"]          — banco já tinha de iteração anterior
+      3. _extrair_nome_do_historico()  — extrai do texto da conversa
+
+    ferramentas_ja_chamadas: evita dupla execução quando o modelo já chamou.
     """
-    nome  = dados_coletados.get("nome")
-    fase  = dados_coletados.get("fase")
+    nome = (
+        dados_coletados.get("nome")
+        or (estado.get("nome_aluno") if estado else None)
+        or _extrair_nome_do_historico(historico_conversa or [])
+    )
+    fase = dados_coletados.get("fase") or (estado.get("fase") if estado else None)
+
+    if nome:
+        print(f"✅ Nome resolvido para disparo: {nome!r}")
+    else:
+        print("⚠️ Nome não encontrado em nenhuma fonte — notificação sem nome")
 
     if status == "ACESSO_LIBERADO":
-        # 1. Registra o trial no banco (se modelo não chamou)
         if "registrar_acesso_trial" not in ferramentas_ja_chamadas:
             print("🔒 Disparo programático: registrar_acesso_trial")
-            registrar_acesso_trial(
-                telefone=telefone,
-                nome_aluno=nome,
-                fase=fase
-            )
+            registrar_acesso_trial(telefone=telefone, nome_aluno=nome, fase=fase)
         else:
             print("ℹ️ registrar_acesso_trial já chamada pelo modelo — pulando")
 
-        # 2. Notifica o time (sempre garante, mesmo se modelo chamou,
-        #    pois é o passo mais crítico — Davi precisa liberar o acesso)
         if "notificar_time_comercial" not in ferramentas_ja_chamadas:
             print("🔒 Disparo programático: notificar_time_comercial (ACESSO_LIBERADO)")
             notificar_time_comercial(
-                telefone=telefone,
-                nome_aluno=nome,
-                fase=fase,
+                telefone=telefone, nome_aluno=nome, fase=fase,
                 status="ACESSO_LIBERADO",
                 resumo_conversa=resumo_notificacao or "Aluno confirmou cadastro — liberar trial."
             )
@@ -499,9 +542,7 @@ def _disparar_ferramentas_criticas(
         if "notificar_time_comercial" not in ferramentas_ja_chamadas:
             print(f"🔒 Disparo programático: notificar_time_comercial ({status})")
             notificar_time_comercial(
-                telefone=telefone,
-                nome_aluno=nome,
-                fase=fase,
+                telefone=telefone, nome_aluno=nome, fase=fase,
                 status=status,
                 resumo_conversa=resumo_notificacao or f"Notificação automática — status: {status}"
             )
@@ -512,7 +553,8 @@ def _disparar_ferramentas_criticas(
 def executar_agente(
     telefone: str,
     historico_conversa: List[Dict],
-    contador_mensagens: int = 0
+    contador_mensagens: int = 0,
+    estado: Dict = None       # estado do banco — usado como fallback para nome/fase
 ) -> Tuple[str, str, Dict]:
 
     if not SYSTEM_PROMPT:
@@ -539,6 +581,9 @@ def executar_agente(
         '\n{"resposta": "mensagem para o aluno", "status": "CONTINUAR", "resumo_notificacao": null, "dados_coletados": {"nome": null, "fase": null, "usa_flashcards": null, "presta_residencia_esse_ano": null, "maior_dificuldade": null, "status_teste": null}}'
         "\n\nCAMPO status — valores aceitos:"
         "\nCONTINUAR | CADASTRO_ENVIADO | ACESSO_LIBERADO | AGUARDAR_FOLLOW_UP | PASSAR_HUMANO | FINALIZADO_SUCESSO | FINALIZADO_RECUSOU | FINALIZADO_NAO_QUALIFICADO | FINALIZADO_INATIVO"
+        "\n\nCAMPO dados_coletados — IMPORTANTE:"
+        "\nSempre preencha todos os campos que você JÁ coletou no histórico, mesmo que não tenham sido mencionados nesta mensagem."
+        "\nNunca retorne null para um campo que você já sabe o valor."
         "\n\nCAMPO resumo_notificacao:"
         "\nPreencha SEMPRE que status for PASSAR_HUMANO, ACESSO_LIBERADO ou CADASTRO_ENVIADO."
         "\nUse texto rico com emoji prefix conforme o tipo:"
@@ -552,7 +597,6 @@ def executar_agente(
 
     mensagens = [{"role": "system", "content": prompt_final}] + historico_conversa
 
-    # Rastreia quais ferramentas o modelo chamou nesta execução
     ferramentas_chamadas: set = set()
 
     max_iteracoes = 5
@@ -572,10 +616,6 @@ def executar_agente(
                     tool_choice="auto",
                     temperature=0.5,
                     max_tokens=1024,
-                    # response_format garante que o modelo retorna JSON válido.
-                    # Funciona junto com tool_calls: quando o modelo usa uma
-                    # ferramenta, retorna tool_calls (não content). Quando
-                    # retorna a resposta final ao aluno, retorna JSON puro.
                     response_format={"type": "json_object"},
                     timeout=30
                 )
@@ -604,7 +644,6 @@ def executar_agente(
                 fn = MAPA_FERRAMENTAS.get(nome_fn)
                 resultado = fn(**args) if fn else {"erro": f"Ferramenta '{nome_fn}' não encontrada"}
 
-                # Registra que essa ferramenta foi chamada pelo modelo
                 ferramentas_chamadas.add(nome_fn)
 
                 print(f"  📤 Resultado: {json.dumps(resultado, ensure_ascii=False)[:200]}")
@@ -641,10 +680,7 @@ def executar_agente(
                     resumo_notificacao = ""
 
                     # --------------------------------------------------------
-                    # INFERÊNCIA DE STATUS — fallback quando o modelo retorna
-                    # texto puro em vez de JSON. Detecta padrões na resposta
-                    # para inferir o status correto e garantir o disparo das
-                    # ferramentas críticas mesmo sem o JSON estruturado.
+                    # INFERÊNCIA DE STATUS — fallback para texto puro
                     # --------------------------------------------------------
                     texto_lower = conteudo.lower()
                     palavras_passar_humano = [
@@ -655,7 +691,6 @@ def executar_agente(
                     ]
                     if any(p in texto_lower for p in palavras_passar_humano):
                         status = "PASSAR_HUMANO"
-                        # Monta resumo básico a partir do histórico
                         ultima_msg_aluno = next(
                             (m["content"] for m in reversed(historico_conversa) if m["role"] == "user"),
                             "mensagem não identificada"
@@ -677,9 +712,8 @@ def executar_agente(
                 status = "CONTINUAR"
 
             # ================================================================
-            # DISPARO PROGRAMÁTICO — garante execução imediata das ferramentas
-            # críticas sem depender do modelo ter chamado as tool_calls.
-            # Executado ANTES de retornar a resposta ao aluno.
+            # DISPARO PROGRAMÁTICO — passa estado e histórico para resolução
+            # de nome com três camadas de fallback.
             # ================================================================
             if status in STATUS_DISPARO_IMEDIATO:
                 _disparar_ferramentas_criticas(
@@ -687,7 +721,9 @@ def executar_agente(
                     status=status,
                     dados_coletados=dados_coletados,
                     resumo_notificacao=resumo_notificacao,
-                    ferramentas_ja_chamadas=ferramentas_chamadas
+                    ferramentas_ja_chamadas=ferramentas_chamadas,
+                    estado=estado,
+                    historico_conversa=historico_conversa
                 )
 
             print(f"✅ Resposta gerada | Status: {status} | {len(resposta)} chars")
@@ -744,7 +780,8 @@ class GestorConversasMindMed:
             resposta, status, dados_coletados = executar_agente(
                 telefone=telefone,
                 historico_conversa=historico,
-                contador_mensagens=contador
+                contador_mensagens=contador,
+                estado=estado       # passa estado para resolução de nome
             )
 
             historico.append({"role": "assistant", "content": resposta})
@@ -757,14 +794,6 @@ class GestorConversasMindMed:
                 contador=contador,
                 dados_coletados=dados_coletados
             )
-
-            # ================================================================
-            # FALLBACK REMOVIDO — o disparo programático em executar_agente
-            # garante a execução das ferramentas críticas antes de retornar.
-            # O fallback aqui era redundante e podia causar dupla notificação
-            # em edge cases onde o modelo chamava a ferramenta E o fallback
-            # disparava também.
-            # ================================================================
 
             print(f"✅ Processado | Status: {status}")
             return {
