@@ -529,18 +529,25 @@ def executar_agente(
         prompt
         + f"\n\nCONTEXTO DA SESSÃO: O telefone do aluno nesta conversa é {telefone}. "
         "Use este valor em TODAS as chamadas de ferramentas quando o campo 'telefone' for necessário."
-        "\n\nREGRA CRÍTICA — FERRAMENTA + JSON NA MESMA RESPOSTA:"
-        "\n1. Se você precisa chamar uma ferramenta E responder ao aluno, faça os dois na mesma resposta."
-        "\n2. NUNCA espere o aluno confirmar ('ok', 'tá bom') para disparar uma ferramenta. Dispare IMEDIATAMENTE ao decidir."
-        "\n3. Após executar todas as ferramentas necessárias, retorne APENAS o JSON abaixo — sem texto antes, sem texto depois:"
-        '\n{"resposta": "sua mensagem aqui", "status": "CONTINUAR", "resumo_notificacao": null, "dados_coletados": {"nome": null, "fase": null, "usa_flashcards": null, "presta_residencia_esse_ano": null, "maior_dificuldade": null, "status_teste": null}}'
-        "\n4. Se não retornar JSON puro, o sistema quebra e o aluno não recebe nada."
+        "\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        "\nFORMATO DE RETORNO — OBRIGATÓRIO E INVIOLÁVEL"
+        "\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        "\nVocê SEMPRE retorna um objeto JSON e NADA MAIS."
+        "\nNem uma palavra fora do JSON. Nem antes. Nem depois."
+        "\nO sistema está configurado para aceitar APENAS JSON — qualquer texto fora do JSON é descartado e o aluno não recebe nada."
+        '\n\nEstrutura obrigatória:'
+        '\n{"resposta": "mensagem para o aluno", "status": "CONTINUAR", "resumo_notificacao": null, "dados_coletados": {"nome": null, "fase": null, "usa_flashcards": null, "presta_residencia_esse_ano": null, "maior_dificuldade": null, "status_teste": null}}'
+        "\n\nCAMPO status — valores aceitos:"
+        "\nCONTINUAR | CADASTRO_ENVIADO | ACESSO_LIBERADO | AGUARDAR_FOLLOW_UP | PASSAR_HUMANO | FINALIZADO_SUCESSO | FINALIZADO_RECUSOU | FINALIZADO_NAO_QUALIFICADO | FINALIZADO_INATIVO"
         "\n\nCAMPO resumo_notificacao:"
-        "\nSempre que o status for PASSAR_HUMANO, ACESSO_LIBERADO ou CADASTRO_ENVIADO, preencha"
-        " 'resumo_notificacao' com um texto rico descrevendo o contexto da conversa para o time."
-        " Exemplos: '🔴 LEAD QUER FECHAR — João confirmou interesse. Plataforma fez sentido.'"
-        " ou '📋 PROBLEMA DE CONTEÚDO — João: deck de diabetes desatualizado.'"
-        " Para outros status, deixe resumo_notificacao como null."
+        "\nPreencha SEMPRE que status for PASSAR_HUMANO, ACESSO_LIBERADO ou CADASTRO_ENVIADO."
+        "\nUse texto rico com emoji prefix conforme o tipo:"
+        "\n  🔴 LEAD QUER FECHAR — {nome}: {contexto}"
+        "\n  📋 PROBLEMA DE CONTEÚDO — {nome}: {descrição}"
+        "\n  🔧 PROBLEMA TÉCNICO — {nome}: {descrição}"
+        "\n  ❓ DÚVIDA — {nome}: {pergunta}"
+        "\n  🟢 LIBERAR ACESSO — {nome} confirmou cadastro."
+        "\nPara outros status, resumo_notificacao deve ser null."
     )
 
     mensagens = [{"role": "system", "content": prompt_final}] + historico_conversa
@@ -565,6 +572,11 @@ def executar_agente(
                     tool_choice="auto",
                     temperature=0.5,
                     max_tokens=1024,
+                    # response_format garante que o modelo retorna JSON válido.
+                    # Funciona junto com tool_calls: quando o modelo usa uma
+                    # ferramenta, retorna tool_calls (não content). Quando
+                    # retorna a resposta final ao aluno, retorna JSON puro.
+                    response_format={"type": "json_object"},
                     timeout=30
                 )
                 break
@@ -625,9 +637,33 @@ def executar_agente(
                 except json.JSONDecodeError:
                     print("⚠️ Resposta não é JSON, usando texto direto")
                     resposta = conteudo
-                    status = "CONTINUAR"
                     dados_coletados = {}
                     resumo_notificacao = ""
+
+                    # --------------------------------------------------------
+                    # INFERÊNCIA DE STATUS — fallback quando o modelo retorna
+                    # texto puro em vez de JSON. Detecta padrões na resposta
+                    # para inferir o status correto e garantir o disparo das
+                    # ferramentas críticas mesmo sem o JSON estruturado.
+                    # --------------------------------------------------------
+                    texto_lower = conteudo.lower()
+                    palavras_passar_humano = [
+                        "vou repassar", "vou acionar", "vou notificar",
+                        "acionando", "acionei", "repassei", "notifiquei",
+                        "equipe de conteúdo", "equipe técnica", "time vai",
+                        "um segundo", "nossa equipe"
+                    ]
+                    if any(p in texto_lower for p in palavras_passar_humano):
+                        status = "PASSAR_HUMANO"
+                        # Monta resumo básico a partir do histórico
+                        ultima_msg_aluno = next(
+                            (m["content"] for m in reversed(historico_conversa) if m["role"] == "user"),
+                            "mensagem não identificada"
+                        )
+                        resumo_notificacao = f"⚠️ INFERIDO PELO SISTEMA — Aluno reportou: {ultima_msg_aluno[:200]}"
+                        print(f"🔍 Status inferido por palavras-chave: PASSAR_HUMANO")
+                    else:
+                        status = "CONTINUAR"
 
             if isinstance(resposta, str):
                 resposta = resposta.replace("\\n\\n", "\n\n").replace("\\n", "\n")
