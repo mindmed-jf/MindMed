@@ -91,6 +91,8 @@ A. "Você já usa flashcards nos seus estudos?"
 B. "E você vai prestar a prova de residência esse ano?"
 C. "Qual é sua maior dificuldade agora nos estudos?"
 
+**OBRIGATÓRIO:** As três perguntas A, B e C devem ser feitas antes de avançar para o Passo 4. Nunca envie o link de cadastro sem ter coletado `maior_dificuldade`. Se o aluno responder A e B mas não C, faça a pergunta C antes de enviar o link.
+
 Se for ciclo básico → encerre com respeito (ver seção QUALIFICAÇÃO).
 Se demonstrar intenção de compra antes de terminar → pule para FECHAMENTO.
 
