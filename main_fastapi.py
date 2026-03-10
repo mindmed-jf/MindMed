@@ -47,6 +47,7 @@ _supabase_dedup: SupabaseClient = create_client(
 
 app.mount("/static", StaticFiles(directory="."), name="static")
 
+
 @app.get("/painel")
 async def painel():
     return FileResponse("painel_mindmed.html")
@@ -61,19 +62,30 @@ ZAPI_BASE_URL     = f"https://api.z-api.io/instances/{ZAPI_INSTANCE_ID}/token/{Z
 DEDUP_TTL_SEGUNDOS = 30
 
 # ============================================================================
-# CORREÇÃO #3 — Cache local em memória como segundo nível de deduplicação
-#
-# ANTES: se o Supabase falhava com erro inesperado, ja_processado retornava
-# False e deixava a mensagem passar — causando duplicatas quando a Z-API
-# reenviava o webhook automaticamente durante instabilidades do banco.
-#
-# AGORA: cache local (dict com TTL) bloqueia duplicatas no mesmo worker
-# antes mesmo de consultar o Supabase. Se o banco falhar, o cache local
-# ainda protege contra reenvios da Z-API dentro da janela de 30 segundos.
-# Para múltiplos workers, o Supabase continua sendo a barreira principal
-# quando está estável — o cache local cobre o caso de instabilidade.
+# Cache local em memória como segundo nível de deduplicação
 # ============================================================================
 _dedup_cache_local: dict = {}   # {chave_md5: timestamp_expiracao}
+
+# ============================================================================
+# FILA SERIALIZADA POR TELEFONE + BUFFER DE MENSAGENS RÁPIDAS
+#
+# Problema raiz das duplicatas de resposta: quando o usuário manda 2-3
+# mensagens em sequência rápida (menos de 3 segundos entre elas), cada
+# uma chega como webhook separado. Como têm textos diferentes, o dedup
+# por hash não as bloqueia. O FastAPI as processa em paralelo com
+# background_tasks, cada uma consultando o banco sem histórico e gerando
+# respostas independentes — causando o "Bia se apresenta 3 vezes".
+#
+# Solução em dois níveis:
+#   1. BUFFER (3s): acumula mensagens rápidas do mesmo telefone e envia
+#      todas juntas ao agente como uma única entrada concatenada.
+#   2. LOCK por telefone: garante serialização — se uma mensagem ainda
+#      está sendo processada quando chega outra, a nova aguarda.
+# ============================================================================
+_locks_por_telefone: dict = {}        # {telefone: asyncio.Lock}
+_buffer_mensagens: dict = {}          # {telefone: [{"texto": ..., "ts": ...}]}
+_buffer_lock = asyncio.Lock()         # protege acesso ao buffer
+BUFFER_JANELA_SEGUNDOS = 3.0          # aguarda 3s por mais mensagens antes de processar
 
 
 @app.on_event("startup")
@@ -81,6 +93,7 @@ async def startup_event():
     global _scheduler_task
     _scheduler_task = asyncio.create_task(iniciar_scheduler())
     log.info("✅ Follow-up Scheduler iniciado junto com o servidor")
+
 
 @app.on_event("shutdown")
 async def shutdown_event():
@@ -94,14 +107,16 @@ async def shutdown_event():
 # HEALTH CHECK
 # ============================================================================
 
+
 @app.get("/health")
 async def health():
-    return {"status": "ok", "timestamp": datetime.now().isoformat(), "agente": "MindMed v3.0"}
+    return {"status": "ok", "timestamp": datetime.now(timezone.utc).isoformat(), "agente": "MindMed v3.0"}
 
 
 # ============================================================================
 # DEDUPLICAÇÃO DE WEBHOOK — via Supabase (funciona com múltiplos workers)
 # ============================================================================
+
 
 def ja_processado(telefone: str, texto: str) -> bool:
     """
@@ -116,28 +131,23 @@ def ja_processado(telefone: str, texto: str) -> bool:
     expira_em = agora + timedelta(seconds=DEDUP_TTL_SEGUNDOS)
 
     # --- Nível 1: cache local ---
-    # Limpa entradas expiradas antes de verificar (evita crescimento indefinido)
     expiradas = [k for k, exp in _dedup_cache_local.items() if exp <= agora]
     for k in expiradas:
         del _dedup_cache_local[k]
 
     if chave in _dedup_cache_local:
         log.warning(f"⚠️ Duplicata bloqueada pelo cache local | chave: {chave[:8]}...")
-        return True  # já vista neste worker → bloqueia
+        return True
 
-    # Registra no cache local imediatamente — antes de ir ao banco
-    # Isso garante proteção mesmo se o Supabase demorar ou falhar
     _dedup_cache_local[chave] = expira_em
 
     # --- Nível 2: Supabase (barreira distribuída) ---
     try:
-        # Tenta inserir a chave — se já existir, lança erro de unique constraint
         _supabase_dedup.table("webhook_dedup").insert({
             "chave": chave,
             "expira_em": expira_em.isoformat()
         }).execute()
 
-        # Limpeza de entradas expiradas no banco (best-effort, não bloqueia)
         try:
             _supabase_dedup.table("webhook_dedup").delete().lt(
                 "expira_em", agora.isoformat()
@@ -145,17 +155,14 @@ def ja_processado(telefone: str, texto: str) -> bool:
         except Exception:
             pass
 
-        return False  # não existia em nenhuma camada → pode processar
+        return False
 
     except Exception as e:
         erro = str(e).lower()
         if "duplicate" in erro or "unique" in erro or "23505" in erro:
             log.warning(f"⚠️ Duplicata bloqueada pelo Supabase | chave: {chave[:8]}...")
-            return True  # já existia no banco → duplicata de outro worker
+            return True
 
-        # Erro inesperado no banco — cache local já registrou, então
-        # reenvios no mesmo worker serão bloqueados pela camada 1.
-        # Para outros workers, aceita o risco de duplicata (melhor que silêncio).
         log.warning(f"⚠️ Erro na deduplicação Supabase: {e} — cache local ativo como fallback")
         return False
 
@@ -164,11 +171,8 @@ def ja_processado(telefone: str, texto: str) -> bool:
 # DETECÇÃO DE MENSAGEM DE GRUPO
 # ============================================================================
 
+
 def eh_mensagem_de_grupo(body: dict) -> bool:
-    """
-    Detecta mensagens de grupo de forma robusta.
-    A Z-API pode indicar grupos de diferentes formas dependendo da versão.
-    """
     if body.get("isGroupMsg") is True:
         return True
     telefone_raw = body.get("phone", "")
@@ -188,6 +192,7 @@ def eh_mensagem_de_grupo(body: dict) -> bool:
 # ============================================================================
 # WEBHOOK — Z-API
 # ============================================================================
+
 
 @app.post("/webhook/zapi")
 async def receber_zapi(request: Request, background_tasks: BackgroundTasks):
@@ -217,20 +222,15 @@ async def receber_zapi(request: Request, background_tasks: BackgroundTasks):
     if "@newsletter" in telefone_raw or "@broadcast" in telefone_raw:
         return JSONResponse({"status": "ignored", "reason": "newsletter"})
 
-    # Ignora tipos que não são mensagens recebidas
+    # Aceita ReceivedCallback (aluno) e SentCallback (Davi pelo número do agente)
     tipo = body.get("type", "")
-    if tipo not in ("ReceivedCallback",):
+    if tipo not in ("ReceivedCallback", "SentCallback"):
         return JSONResponse({"status": "ignored", "reason": f"type_{tipo}"})
 
-    # Ignora mensagens do próprio bot
-    if body.get("fromMe", False):
-        return JSONResponse({"status": "ignored", "reason": "own_message"})
-
-    # Extrai e normaliza telefone — remove sufixos que a Z-API pode incluir
-    # ex: "5511999999999@c.us" → "5511999999999"
+    # Extrai e normaliza telefone
     telefone = (
         body.get("phone", "")
-        .split("@")[0]          # remove @c.us ou qualquer sufixo
+        .split("@")[0]
         .replace("+", "")
         .replace(" ", "")
         .strip()
@@ -245,39 +245,124 @@ async def receber_zapi(request: Request, background_tasks: BackgroundTasks):
     if not telefone or not texto:
         return JSONResponse({"status": "ignored", "reason": "no_text_or_phone"})
 
-    # Deduplicação
+    # ================================================================
+    # CAPTURA DE MENSAGENS DO DAVI (fromMe com conversa em pausa)
+    #
+    # Quando o Davi manda mensagem pelo número do agente para um aluno,
+    # a Z-API dispara SentCallback com fromMe=True. Normalmente ignoramos.
+    # Mas se a conversa está em PASSAR_HUMANO ou ACESSO_LIBERADO,
+    # salvamos no histórico com prefixo [Davi]: — assim quando o agente
+    # retomar, terá contexto completo do que o Davi prometeu/combinou.
+    # ================================================================
+    if body.get("fromMe", False):
+        background_tasks.add_task(_salvar_mensagem_davi, telefone=telefone, texto=texto)
+        return JSONResponse({"status": "davi_message_saved"})
+
+    # Deduplicação (só para mensagens do aluno)
     if ja_processado(telefone, texto):
         log.warning(f"⚠️ Mensagem duplicada ignorada | {telefone}: {texto[:40]}")
         return JSONResponse({"status": "ignored", "reason": "duplicate"})
 
     log.info(f"📨 Z-API | {telefone}: {texto[:60]}")
 
-    background_tasks.add_task(
-        processar_e_responder_zapi,
-        telefone=telefone,
-        mensagem=texto
-    )
+    # Usa buffer + fila — agrupa mensagens rápidas e serializa por telefone
+    background_tasks.add_task(enfileirar_mensagem, telefone=telefone, mensagem=texto)
 
     return JSONResponse({"status": "received"})
 
 
 # ============================================================================
-# CORREÇÃO #2 — Bloqueio síncrono no servidor assíncrono
-#
-# ANTES: gestor.processar_mensagem() era chamado diretamente dentro de uma
-# coroutine async, bloqueando o event loop inteiro do FastAPI por 3-8 segundos
-# enquanto o agente aguardava resposta da OpenAI e do Supabase. Com múltiplos
-# usuários simultâneos, o servidor travava e mensagens ficavam na fila.
-#
-# AGORA: asyncio.to_thread() executa a função síncrona em uma thread do pool
-# do sistema operacional, liberando o event loop para continuar atendendo
-# outras requisições enquanto o agente processa em paralelo.
+# FUNÇÕES DE PROCESSAMENTO DE MENSAGENS
 # ============================================================================
+
+
+def _obter_lock_telefone(telefone: str) -> asyncio.Lock:
+    """Retorna (ou cria) o lock exclusivo para um telefone."""
+    if telefone not in _locks_por_telefone:
+        _locks_por_telefone[telefone] = asyncio.Lock()
+    return _locks_por_telefone[telefone]
+
+
+async def _salvar_mensagem_davi(telefone: str, texto: str):
+    """
+    Salva mensagem enviada pelo Davi (fromMe=True) no histórico da conversa.
+    Só age se a conversa estiver em PASSAR_HUMANO ou ACESSO_LIBERADO.
+    Inclui deduplicação simples: verifica se a última mensagem do histórico
+    já é idêntica antes de salvar — protege contra reenvio de SentCallback
+    pela Z-API em caso de instabilidade.
+    """
+    try:
+        resultado = _supabase_dedup.table("conversas").select("*").eq("telefone", telefone).limit(1).execute()
+        if not resultado.data:
+            return
+        estado = resultado.data[0]
+        status = estado.get("status_conversa", "")
+        if status not in ("PASSAR_HUMANO", "ACESSO_LIBERADO"):
+            return  # conversa não está em pausa — Davi não está atendendo
+
+        historico = estado.get("historico", [])
+
+        # Deduplicação: ignora se a última entrada já é essa mensagem do Davi
+        conteudo_davi = f"[Davi]: {texto}"
+        if historico and historico[-1].get("content") == conteudo_davi:
+            log.info(f"ℹ️ Mensagem do Davi já registrada (dedup) | {telefone}: {texto[:40]}")
+            return
+
+        historico.append({"role": "assistant", "content": conteudo_davi})
+        _supabase_dedup.table("conversas").update({
+            "historico": historico[-20:],
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        }).eq("telefone", telefone).execute()
+        log.info(f"💬 Mensagem do Davi salva no histórico de {telefone}: {texto[:60]}")
+    except Exception as e:
+        log.error(f"❌ Erro ao salvar mensagem do Davi para {telefone}: {e}")
+
+
+async def enfileirar_mensagem(telefone: str, mensagem: str):
+    """
+    Adiciona mensagem ao buffer do telefone e agenda processamento.
+    Se já existe um timer rodando para este telefone, apenas acumula.
+    Se não existe, inicia o timer de BUFFER_JANELA_SEGUNDOS.
+    """
+    async with _buffer_lock:
+        agora = datetime.now(timezone.utc).timestamp()
+        if telefone not in _buffer_mensagens:
+            _buffer_mensagens[telefone] = []
+            asyncio.create_task(_processar_buffer_apos_janela(telefone))
+        _buffer_mensagens[telefone].append({"texto": mensagem, "ts": agora})
+        log.info(f"📥 Buffer [{telefone}]: {len(_buffer_mensagens[telefone])} msg(s) acumuladas")
+
+
+async def _processar_buffer_apos_janela(telefone: str):
+    """
+    Aguarda a janela de buffer e então processa todas as mensagens acumuladas
+    como uma única entrada para o agente — serializada pelo lock do telefone.
+    """
+    await asyncio.sleep(BUFFER_JANELA_SEGUNDOS)
+
+    async with _buffer_lock:
+        mensagens = _buffer_mensagens.pop(telefone, [])
+
+    if not mensagens:
+        return
+
+    # Concatena todas as mensagens em ordem cronológica
+    if len(mensagens) == 1:
+        texto_final = mensagens[0]["texto"]
+    else:
+        textos = [m["texto"] for m in mensagens]
+        texto_final = "\n".join(textos)
+        log.info(f"🔗 Buffer fundido [{telefone}]: {len(mensagens)} msgs → 1 entrada")
+
+    # Processa com lock — garante que não há dois processamentos simultâneos
+    lock = _obter_lock_telefone(telefone)
+    async with lock:
+        await processar_e_responder_zapi(telefone=telefone, mensagem=texto_final)
+
+
 async def processar_e_responder_zapi(telefone: str, mensagem: str):
     """Processa a mensagem com o agente e envia resposta via Z-API."""
     try:
-        # gestor.processar_mensagem é síncrono (OpenAI + Supabase bloqueantes).
-        # asyncio.to_thread roda em thread separada sem bloquear o event loop.
         resultado = await asyncio.to_thread(
             gestor.processar_mensagem,
             telefone=telefone,
@@ -355,18 +440,16 @@ async def enviar_mensagem_zapi(telefone: str, texto: str):
 # ENDPOINT DE RETOMAR AGENTE
 # ============================================================================
 
+
 @app.post("/retomar/{telefone}")
 async def retomar_agente(telefone: str):
-    from supabase import create_client
-    supabase = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY"))
-
     try:
-        supabase.table("conversas").update({
+        _supabase_dedup.table("conversas").update({
             "status_conversa": "CONTINUAR",
-            "updated_at": datetime.now().isoformat()
+            "updated_at": datetime.now(timezone.utc).isoformat()
         }).eq("telefone", telefone).execute()
 
-        supabase.table("leads").update({
+        _supabase_dedup.table("leads").update({
             "status_conversa": "CONTINUAR",
         }).eq("telefone", telefone).execute()
 
@@ -381,6 +464,7 @@ async def retomar_agente(telefone: str):
 # ENDPOINT DE TESTE MANUAL
 # ============================================================================
 
+
 class MensagemTeste(BaseModel):
     telefone: str
     mensagem: str
@@ -389,7 +473,6 @@ class MensagemTeste(BaseModel):
 @app.post("/teste/mensagem")
 async def testar_mensagem(body: MensagemTeste):
     log.info(f"🧪 Teste manual | {body.telefone}: {body.mensagem}")
-    # Mesmo endpoint de teste também usa to_thread para consistência
     resultado = await asyncio.to_thread(
         gestor.processar_mensagem,
         telefone=body.telefone,
