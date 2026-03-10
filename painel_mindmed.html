@@ -374,7 +374,6 @@
   }
   .btn-main:disabled { opacity:0.25; cursor:default; }
 
-  /* Botão finalizar (X) */
   .btn-sec {
     padding: 11px 14px;
     border-radius: 9px;
@@ -389,7 +388,6 @@
   }
   .btn-sec:hover { border-color:var(--red); color:var(--red); }
 
-  /* Botão excluir (lixeira) — vermelho */
   .btn-del {
     padding: 11px 14px;
     border-radius: 9px;
@@ -623,9 +621,6 @@
 </div>
 
 <script>
-  // ══════════════════════════════════════════
-  // CONFIGURAÇÃO
-  // ══════════════════════════════════════════
   const API_URL      = 'http://localhost:8000';
   const SUPABASE_URL = 'https://ilfbfkjrqltdjehgpzmv.supabase.co';
   const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlsZmJma2pycWx0ZGplaGdwem12Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE3NzE1NTYsImV4cCI6MjA4NzM0NzU1Nn0.EkCIwO8cPBRaaGacCCYlA9eP6h0mzzuTNPviuXTs868';
@@ -633,15 +628,14 @@
   let leads = [];
   let filtroAtual = 'todos';
 
-  // ══════════════════════════════════════════
-  // CARREGAR DADOS
-  // ══════════════════════════════════════════
   async function carregarDados() {
     const icon = document.getElementById('refresh-icon');
     icon.innerHTML = '<span class="spinner"></span>';
     try {
+      // ✅ CORRIGIDO: busca direto de 'leads' em vez de 'crm_leads'
+      // A view crm_leads não expunha a coluna maior_dificuldade
       const r = await fetch(
-        SUPABASE_URL + '/rest/v1/crm_leads?select=*&order=updated_at.desc',
+        SUPABASE_URL + '/rest/v1/leads?select=*&order=updated_at.desc',
         { headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY } }
       );
       if (!r.ok) throw new Error();
@@ -663,9 +657,6 @@
     ];
   }
 
-  // ══════════════════════════════════════════
-  // STATS
-  // ══════════════════════════════════════════
   function atualizarStats() {
     const pausa  = leads.filter(l => l.status_conversa === 'PASSAR_HUMANO').length;
     const trial  = leads.filter(l => ['ACESSO_LIBERADO','AGUARDAR_FOLLOW_UP'].includes(l.status_conversa)).length;
@@ -676,9 +667,6 @@
     document.getElementById('s-total').textContent  = leads.length;
   }
 
-  // ══════════════════════════════════════════
-  // TABS + RENDER
-  // ══════════════════════════════════════════
   function filtrar(status, btn) {
     filtroAtual = status;
     document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
@@ -747,9 +735,6 @@
     </div>`;
   }
 
-  // ══════════════════════════════════════════
-  // AÇÕES
-  // ══════════════════════════════════════════
   let acao = null;
 
   function confirmar(tipo, tel, nome) {
@@ -762,7 +747,6 @@
       document.getElementById('modal-btn').textContent   = '▶ Retomar agente';
       document.getElementById('modal-btn').style.background = 'var(--green)';
       document.getElementById('modal-btn').style.color      = '#000';
-      document.getElementById('modal').style.setProperty('--modal-border', 'var(--green-border)');
     } else if (tipo === 'finalizar') {
       document.getElementById('modal-icon').textContent  = '✕';
       document.getElementById('modal-title').textContent = 'Finalizar conversa?';
@@ -773,7 +757,7 @@
     } else if (tipo === 'excluir') {
       document.getElementById('modal-icon').textContent  = '🗑';
       document.getElementById('modal-title').textContent = 'Excluir lead permanentemente?';
-      document.getElementById('modal-sub').textContent   = 'Todos os dados de ' + nome + ' serão removidos do Supabase (crm_leads e conversas). Esta ação não pode ser desfeita.';
+      document.getElementById('modal-sub').textContent   = 'Todos os dados de ' + nome + ' serão removidos do Supabase (leads e conversas). Esta ação não pode ser desfeita.';
       document.getElementById('modal-btn').textContent   = '🗑 Excluir permanentemente';
       document.getElementById('modal-btn').style.background = 'var(--red)';
       document.getElementById('modal-btn').style.color      = '#fff';
@@ -800,12 +784,9 @@
     };
 
     try {
-
-      // ── RETOMAR ──────────────────────────────
       if (tipo === 'retomar') {
         const novoStatus = 'CONTINUAR';
 
-        // Atualiza tabela leads (tabela real por trás da view crm_leads)
         const rL = await fetch(SUPABASE_URL + '/rest/v1/leads?telefone=eq.' + tel, {
           method: 'PATCH',
           headers,
@@ -813,7 +794,6 @@
         });
         if (!rL.ok) throw new Error('Erro ao atualizar leads: ' + rL.status);
 
-        // Atualiza tabela conversas
         await fetch(SUPABASE_URL + '/rest/v1/conversas?telefone=eq.' + tel, {
           method: 'PATCH',
           headers,
@@ -822,11 +802,9 @@
 
         toast('success', '✅ Agente retomado para ' + nome);
 
-      // ── FINALIZAR ─────────────────────────────
       } else if (tipo === 'finalizar') {
         const novoStatus = 'FINALIZADO_SUCESSO';
 
-        // Atualiza tabela leads (tabela real por trás da view crm_leads)
         const rL = await fetch(SUPABASE_URL + '/rest/v1/leads?telefone=eq.' + tel, {
           method: 'PATCH',
           headers,
@@ -834,7 +812,6 @@
         });
         if (!rL.ok) throw new Error('Erro ao atualizar leads: ' + rL.status);
 
-        // Atualiza tabela conversas
         await fetch(SUPABASE_URL + '/rest/v1/conversas?telefone=eq.' + tel, {
           method: 'PATCH',
           headers,
@@ -843,16 +820,12 @@
 
         toast('success', '✅ Conversa com ' + nome + ' finalizada');
 
-      // ── EXCLUIR ───────────────────────────────
       } else if (tipo === 'excluir') {
-
-        // Deleta da tabela leads (tabela real — crm_leads é só uma view)
         const r1 = await fetch(SUPABASE_URL + '/rest/v1/leads?telefone=eq.' + tel, {
           method: 'DELETE',
           headers
         });
 
-        // Deleta de conversas
         const r2 = await fetch(SUPABASE_URL + '/rest/v1/conversas?telefone=eq.' + tel, {
           method: 'DELETE',
           headers
@@ -861,7 +834,6 @@
         if (!r1.ok && r1.status !== 404) throw new Error('Erro ao excluir leads: ' + r1.status);
         if (!r2.ok && r2.status !== 404) throw new Error('Erro ao excluir conversas: ' + r2.status);
 
-        // Remove o card da tela imediatamente sem precisar recarregar
         const cardEl = document.getElementById('card-' + tel);
         if (cardEl) {
           cardEl.style.transition = 'opacity 0.3s, transform 0.3s';
@@ -870,13 +842,12 @@
           setTimeout(() => cardEl.remove(), 300);
         }
 
-        // Atualiza array local
         leads = leads.filter(l => l.telefone !== tel);
         atualizarStats();
         atualizarContadores();
 
         toast('success', '🗑 Lead ' + nome + ' excluído permanentemente');
-        return; // Não chama carregarDados para evitar piscar
+        return;
       }
 
     } catch(e) {
@@ -888,9 +859,6 @@
     setTimeout(carregarDados, 800);
   }
 
-  // ══════════════════════════════════════════
-  // HELPERS
-  // ══════════════════════════════════════════
   function fmtTempo(iso) {
     if (!iso) return '—';
     const min = Math.floor((Date.now() - new Date(iso)) / 60000);
@@ -913,9 +881,6 @@
     setTimeout(() => t.classList.remove('show'), 3500);
   }
 
-  // ══════════════════════════════════════════
-  // INIT
-  // ══════════════════════════════════════════
   carregarDados();
   setInterval(carregarDados, 30000);
 </script>
