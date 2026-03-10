@@ -197,6 +197,7 @@ TAGS_STATUS = {
     "FINALIZADO_ERRO":            "❌ ERRO",
 }
 
+
 def buscar_dados_aluno(telefone: str) -> Dict:
     try:
         resultado = (
@@ -470,7 +471,6 @@ def _disparar_ferramentas_criticas(
     fase  = dados_coletados.get("fase")
 
     if status == "ACESSO_LIBERADO":
-        # 1. Registra o trial no banco (se modelo não chamou)
         if "registrar_acesso_trial" not in ferramentas_ja_chamadas:
             print("🔒 Disparo programático: registrar_acesso_trial")
             registrar_acesso_trial(
@@ -481,8 +481,6 @@ def _disparar_ferramentas_criticas(
         else:
             print("ℹ️ registrar_acesso_trial já chamada pelo modelo — pulando")
 
-        # 2. Notifica o time (sempre garante, mesmo se modelo chamou,
-        #    pois é o passo mais crítico — Davi precisa liberar o acesso)
         if "notificar_time_comercial" not in ferramentas_ja_chamadas:
             print("🔒 Disparo programático: notificar_time_comercial (ACESSO_LIBERADO)")
             notificar_time_comercial(
@@ -512,7 +510,8 @@ def _disparar_ferramentas_criticas(
 def executar_agente(
     telefone: str,
     historico_conversa: List[Dict],
-    contador_mensagens: int = 0
+    contador_mensagens: int = 0,
+    tem_contexto_davi: bool = False
 ) -> Tuple[str, str, Dict]:
 
     if not SYSTEM_PROMPT:
@@ -523,6 +522,14 @@ def executar_agente(
         prompt += (
             f"\n\n⚠️ ATENÇÃO: Esta é sua mensagem #{contador_mensagens + 1}. "
             "Se o aluno não demonstrou interesse claro, encerre a conversa com elegância."
+        )
+
+    if tem_contexto_davi:
+        prompt += (
+            "\n\n⚠️ CONTEXTO: O histórico desta conversa contém mensagens prefixadas com [Davi]:. "
+            "Isso significa que o Davi atendeu o aluno diretamente enquanto o agente estava pausado. "
+            "Leia essas mensagens, entenda o que foi combinado e retome a conversa de forma natural — "
+            "sem repetir o que o Davi já tratou."
         )
 
     prompt_final = (
@@ -572,10 +579,6 @@ def executar_agente(
                     tool_choice="auto",
                     temperature=0.5,
                     max_tokens=1024,
-                    # response_format garante que o modelo retorna JSON válido.
-                    # Funciona junto com tool_calls: quando o modelo usa uma
-                    # ferramenta, retorna tool_calls (não content). Quando
-                    # retorna a resposta final ao aluno, retorna JSON puro.
                     response_format={"type": "json_object"},
                     timeout=30
                 )
@@ -604,7 +607,6 @@ def executar_agente(
                 fn = MAPA_FERRAMENTAS.get(nome_fn)
                 resultado = fn(**args) if fn else {"erro": f"Ferramenta '{nome_fn}' não encontrada"}
 
-                # Registra que essa ferramenta foi chamada pelo modelo
                 ferramentas_chamadas.add(nome_fn)
 
                 print(f"  📤 Resultado: {json.dumps(resultado, ensure_ascii=False)[:200]}")
@@ -642,9 +644,7 @@ def executar_agente(
 
                     # --------------------------------------------------------
                     # INFERÊNCIA DE STATUS — fallback quando o modelo retorna
-                    # texto puro em vez de JSON. Detecta padrões na resposta
-                    # para inferir o status correto e garantir o disparo das
-                    # ferramentas críticas mesmo sem o JSON estruturado.
+                    # texto puro em vez de JSON.
                     # --------------------------------------------------------
                     texto_lower = conteudo.lower()
                     palavras_passar_humano = [
@@ -655,7 +655,6 @@ def executar_agente(
                     ]
                     if any(p in texto_lower for p in palavras_passar_humano):
                         status = "PASSAR_HUMANO"
-                        # Monta resumo básico a partir do histórico
                         ultima_msg_aluno = next(
                             (m["content"] for m in reversed(historico_conversa) if m["role"] == "user"),
                             "mensagem não identificada"
@@ -676,11 +675,6 @@ def executar_agente(
             if status not in status_validos:
                 status = "CONTINUAR"
 
-            # ================================================================
-            # DISPARO PROGRAMÁTICO — garante execução imediata das ferramentas
-            # críticas sem depender do modelo ter chamado as tool_calls.
-            # Executado ANTES de retornar a resposta ao aluno.
-            # ================================================================
             if status in STATUS_DISPARO_IMEDIATO:
                 _disparar_ferramentas_criticas(
                     telefone=telefone,
@@ -703,6 +697,7 @@ def executar_agente(
 # ============================================================================
 # 5. GESTOR DE CONVERSAS
 # ============================================================================
+
 
 class GestorConversasMindMed:
 
@@ -741,10 +736,17 @@ class GestorConversasMindMed:
             if len(historico) > MAX_HISTORICO:
                 historico = historico[-MAX_HISTORICO:]
 
+            # Verifica se há mensagens do Davi no histórico para passar ao agente
+            tem_contexto_davi = any(
+                m.get("role") == "assistant" and m.get("content", "").startswith("[Davi]:")
+                for m in historico
+            )
+
             resposta, status, dados_coletados = executar_agente(
                 telefone=telefone,
                 historico_conversa=historico,
-                contador_mensagens=contador
+                contador_mensagens=contador,
+                tem_contexto_davi=tem_contexto_davi
             )
 
             historico.append({"role": "assistant", "content": resposta})
@@ -757,14 +759,6 @@ class GestorConversasMindMed:
                 contador=contador,
                 dados_coletados=dados_coletados
             )
-
-            # ================================================================
-            # FALLBACK REMOVIDO — o disparo programático em executar_agente
-            # garante a execução das ferramentas críticas antes de retornar.
-            # O fallback aqui era redundante e podia causar dupla notificação
-            # em edge cases onde o modelo chamava a ferramenta E o fallback
-            # disparava também.
-            # ================================================================
 
             print(f"✅ Processado | Status: {status}")
             return {
@@ -842,6 +836,7 @@ class GestorConversasMindMed:
 # ============================================================================
 # 6. SIMULADOR
 # ============================================================================
+
 
 def simular_conversa():
     print("=" * 65)
