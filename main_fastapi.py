@@ -68,19 +68,6 @@ _dedup_cache_local: dict = {}   # {chave_md5: timestamp_expiracao}
 
 # ============================================================================
 # FILA SERIALIZADA POR TELEFONE + BUFFER DE MENSAGENS RÁPIDAS
-#
-# Problema raiz das duplicatas de resposta: quando o usuário manda 2-3
-# mensagens em sequência rápida (menos de 3 segundos entre elas), cada
-# uma chega como webhook separado. Como têm textos diferentes, o dedup
-# por hash não as bloqueia. O FastAPI as processa em paralelo com
-# background_tasks, cada uma consultando o banco sem histórico e gerando
-# respostas independentes — causando o "Bia se apresenta 3 vezes".
-#
-# Solução em dois níveis:
-#   1. BUFFER (3s): acumula mensagens rápidas do mesmo telefone e envia
-#      todas juntas ao agente como uma única entrada concatenada.
-#   2. LOCK por telefone: garante serialização — se uma mensagem ainda
-#      está sendo processada quando chega outra, a nova aguarda.
 # ============================================================================
 _locks_por_telefone: dict = {}        # {telefone: asyncio.Lock}
 _buffer_mensagens: dict = {}          # {telefone: [{"texto": ..., "ts": ...}]}
@@ -119,13 +106,6 @@ async def health():
 
 
 def ja_processado(telefone: str, texto: str) -> bool:
-    """
-    Verifica e registra se essa mensagem já foi processada.
-    Dois níveis de proteção:
-      1. Cache local em memória — rápido, protege dentro do mesmo worker
-         mesmo quando o Supabase está instável.
-      2. Supabase — barreira distribuída para múltiplos workers/instâncias.
-    """
     chave = hashlib.md5(f"{telefone}:{texto}".encode()).hexdigest()
     agora = datetime.now(timezone.utc)
     expira_em = agora + timedelta(seconds=DEDUP_TTL_SEGUNDOS)
@@ -198,6 +178,8 @@ def eh_mensagem_de_grupo(body: dict) -> bool:
 async def receber_zapi(request: Request, background_tasks: BackgroundTasks):
     """
     Recebe mensagens de WhatsApp via Z-API.
+    Processa apenas ReceivedCallback (mensagens dos alunos).
+    SentCallback é ignorado — o Davi atende manualmente e retoma pelo painel.
     """
     client_token = request.headers.get("client-token", "")
     if ZAPI_CLIENT_TOKEN and client_token and client_token != ZAPI_CLIENT_TOKEN:
@@ -222,10 +204,15 @@ async def receber_zapi(request: Request, background_tasks: BackgroundTasks):
     if "@newsletter" in telefone_raw or "@broadcast" in telefone_raw:
         return JSONResponse({"status": "ignored", "reason": "newsletter"})
 
-    # Aceita ReceivedCallback (aluno) e SentCallback (Davi pelo número do agente)
+    # Aceita apenas ReceivedCallback (mensagens dos alunos)
+    # SentCallback ignorado — Davi atende manualmente e retoma pelo painel
     tipo = body.get("type", "")
-    if tipo not in ("ReceivedCallback", "SentCallback"):
+    if tipo != "ReceivedCallback":
         return JSONResponse({"status": "ignored", "reason": f"type_{tipo}"})
+
+    # Ignora mensagens enviadas pelo próprio número (segurança extra)
+    if body.get("fromMe", False):
+        return JSONResponse({"status": "ignored", "reason": "from_me"})
 
     # Extrai e normaliza telefone
     telefone = (
@@ -245,27 +232,14 @@ async def receber_zapi(request: Request, background_tasks: BackgroundTasks):
     if not telefone or not texto:
         return JSONResponse({"status": "ignored", "reason": "no_text_or_phone"})
 
-    # ================================================================
-    # CAPTURA DE MENSAGENS DO DAVI (fromMe com conversa em pausa)
-    #
-    # Quando o Davi manda mensagem pelo número do agente para um aluno,
-    # a Z-API dispara SentCallback com fromMe=True. Normalmente ignoramos.
-    # Mas se a conversa está em PASSAR_HUMANO ou ACESSO_LIBERADO,
-    # salvamos no histórico com prefixo [Davi]: — assim quando o agente
-    # retomar, terá contexto completo do que o Davi prometeu/combinou.
-    # ================================================================
-    if body.get("fromMe", False):
-        background_tasks.add_task(_salvar_mensagem_davi, telefone=telefone, texto=texto)
-        return JSONResponse({"status": "davi_message_saved"})
-
-    # Deduplicação (só para mensagens do aluno)
+    # Deduplicação
     if ja_processado(telefone, texto):
         log.warning(f"⚠️ Mensagem duplicada ignorada | {telefone}: {texto[:40]}")
         return JSONResponse({"status": "ignored", "reason": "duplicate"})
 
     log.info(f"📨 Z-API | {telefone}: {texto[:60]}")
 
-    # Usa buffer + fila — agrupa mensagens rápidas e serializa por telefone
+    # Buffer + fila — agrupa mensagens rápidas e serializa por telefone
     background_tasks.add_task(enfileirar_mensagem, telefone=telefone, mensagem=texto)
 
     return JSONResponse({"status": "received"})
@@ -283,46 +257,9 @@ def _obter_lock_telefone(telefone: str) -> asyncio.Lock:
     return _locks_por_telefone[telefone]
 
 
-async def _salvar_mensagem_davi(telefone: str, texto: str):
-    """
-    Salva mensagem enviada pelo Davi (fromMe=True) no histórico da conversa.
-    Só age se a conversa estiver em PASSAR_HUMANO ou ACESSO_LIBERADO.
-    Inclui deduplicação simples: verifica se a última mensagem do histórico
-    já é idêntica antes de salvar — protege contra reenvio de SentCallback
-    pela Z-API em caso de instabilidade.
-    """
-    try:
-        resultado = _supabase_dedup.table("conversas").select("*").eq("telefone", telefone).limit(1).execute()
-        if not resultado.data:
-            return
-        estado = resultado.data[0]
-        status = estado.get("status_conversa", "")
-        if status not in ("PASSAR_HUMANO", "ACESSO_LIBERADO"):
-            return  # conversa não está em pausa — Davi não está atendendo
-
-        historico = estado.get("historico", [])
-
-        # Deduplicação: ignora se a última entrada já é essa mensagem do Davi
-        conteudo_davi = f"[Davi]: {texto}"
-        if historico and historico[-1].get("content") == conteudo_davi:
-            log.info(f"ℹ️ Mensagem do Davi já registrada (dedup) | {telefone}: {texto[:40]}")
-            return
-
-        historico.append({"role": "assistant", "content": conteudo_davi})
-        _supabase_dedup.table("conversas").update({
-            "historico": historico[-20:],
-            "updated_at": datetime.now(timezone.utc).isoformat()
-        }).eq("telefone", telefone).execute()
-        log.info(f"💬 Mensagem do Davi salva no histórico de {telefone}: {texto[:60]}")
-    except Exception as e:
-        log.error(f"❌ Erro ao salvar mensagem do Davi para {telefone}: {e}")
-
-
 async def enfileirar_mensagem(telefone: str, mensagem: str):
     """
     Adiciona mensagem ao buffer do telefone e agenda processamento.
-    Se já existe um timer rodando para este telefone, apenas acumula.
-    Se não existe, inicia o timer de BUFFER_JANELA_SEGUNDOS.
     """
     async with _buffer_lock:
         agora = datetime.now(timezone.utc).timestamp()
@@ -346,7 +283,6 @@ async def _processar_buffer_apos_janela(telefone: str):
     if not mensagens:
         return
 
-    # Concatena todas as mensagens em ordem cronológica
     if len(mensagens) == 1:
         texto_final = mensagens[0]["texto"]
     else:
@@ -354,7 +290,6 @@ async def _processar_buffer_apos_janela(telefone: str):
         texto_final = "\n".join(textos)
         log.info(f"🔗 Buffer fundido [{telefone}]: {len(mensagens)} msgs → 1 entrada")
 
-    # Processa com lock — garante que não há dois processamentos simultâneos
     lock = _obter_lock_telefone(telefone)
     async with lock:
         await processar_e_responder_zapi(telefone=telefone, mensagem=texto_final)
