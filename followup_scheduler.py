@@ -122,25 +122,22 @@ def mensagem_followup_1(nome: str) -> str:
     return f"E aí, {n}? 👋\nConseguiu explorar a plataforma? Ficou com alguma dúvida?"
 
 def mensagem_followup_2(nome: str) -> str:
-    # CORREÇÃO #10 — antes dizia "tá acabando em breve", mas o acesso de 48h
-    # já expirou nesse ponto. Mensagem ajustada para refletir a realidade
-    # e ainda abrir porta para continuar com um plano pago.
-    """48h — acesso expirado, pergunta o que achou e abre para continuar."""
+    # CORREÇÃO #10 — acesso é de 7 dias, então aos 48h ainda está no meio do trial.
+    # Mensagem ajustada para engajar sem criar urgência falsa.
+    """48h — ainda no trial, pergunta como está indo."""
     prefixo = f"{nome}, " if nome else ""
     return (
-        f"{prefixo}seu acesso de teste expirou! ⏰\n"
-        f"Você conseguiu explorar a plataforma? O que achou dos flashcards?\n"
-        f"Se quiser continuar, é só me falar que a gente vê o melhor plano pra você!"
+        f"{prefixo}e aí, como tá indo o teste? 👀\n"
+        f"Já deu pra explorar os flashcards e o Planner? Se tiver alguma dúvida, é só me chamar!"
     )
 
 def mensagem_followup_3(nome: str) -> str:
-    # CORREÇÃO #10 — encerramento sem mencionar trial (já expirou há 24h).
-    # Mensagem leve e sem pressão, deixa a porta aberta.
-    """72h — encerramento leve, sem mencionar trial."""
+    # 72h — ainda dentro do trial de 7 dias. Urgência leve, acesso acabando em breve.
+    """72h — trial quase na metade, cria leve urgência."""
     prefixo = f"{nome}, " if nome else ""
     return (
-        f"{prefixo}tudo bem? 🤙\n"
-        f"Se um dia quiser conhecer a MindMed melhor, é só chamar. Boa sorte nos estudos! 💪"
+        f"{prefixo}seu trial tá na metade! 📅\n"
+        f"Conseguiu testar os flashcards? O que achou até agora? Tô por aqui pra ajudar no que precisar 💪"
     )
 
 
@@ -155,7 +152,7 @@ def mensagem_reengaj_1(nome: str) -> str:
 def mensagem_reengaj_2(nome: str) -> str:
     prefixo = f"{nome}, " if nome else ""
     return (
-        f"{prefixo}que tal testar a plataforma por 48h de graça? Sem precisar de cartão 😄\n"
+        f"{prefixo}que tal testar a plataforma por 7 dias de graça? Sem precisar de cartão 😄\n"
         f"Só me avisa que libero seu acesso!"
     )
 
