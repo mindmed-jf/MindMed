@@ -273,7 +273,7 @@
 
 <div class="overlay" id="modal">
   <div class="modal">
-    <div class="modal-icon" id="modal-icon">▶</div>
+    
     <div class="modal-title" id="modal-title">Confirmar ação?</div>
     <div class="modal-sub" id="modal-sub"></div>
     <div class="modal-actions">
@@ -284,7 +284,6 @@
 </div>
 
 <div class="toast" id="toast">
-  <span id="toast-icon"></span>
   <span id="toast-msg"></span>
 </div>
 
@@ -348,11 +347,11 @@
 
     if (!lista.length) {
       const msgs = {
-        'AGUARDANDO_LIBERACAO': ['⏳','Nenhum contato aguardando','Tudo liberado por enquanto.'],
-        'PASSAR_HUMANO':        ['✅','Nenhum em pausa','Nenhuma conversa aguardando o Davi.'],
-        'ACESSO_LIBERADO':      ['🎓','Nenhum em trial','Nenhum aluno testando agora.'],
-        'CONTINUAR':            ['🤖','Nenhum em atendimento','Agente sem conversas ativas.'],
-        'todos':                ['✅','Nenhum atendimento','Tudo em ordem por enquanto.'],
+        'AGUARDANDO_LIBERACAO': ['','Nenhum contato aguardando','Tudo liberado por enquanto.'],
+        'PASSAR_HUMANO':        ['','Nenhum em pausa','Nenhuma conversa aguardando o Davi.'],
+        'ACESSO_LIBERADO':      ['','Nenhum em trial','Nenhum aluno testando agora.'],
+        'CONTINUAR':            ['','Nenhum em atendimento','Agente sem conversas ativas.'],
+        'todos':                ['','Nenhum atendimento','Tudo em ordem por enquanto.'],
       };
       const m = msgs[filtro] || msgs['todos'];
       grid.innerHTML = `<div class="empty"><div class="empty-icon">${m[0]}</div><div class="empty-title">${m[1]}</div><div class="empty-sub">${m[2]}</div></div>`;
@@ -384,7 +383,7 @@
     // Primeira mensagem — exibe só para aguardando
     const primeiraMsgHTML = ehAguardando && l.primeira_mensagem ? `
       <div class="primeira-msg">
-        <div class="primeira-msg-label">💬 Primeira mensagem</div>
+        <div class="primeira-msg-label">Primeira mensagem</div>
         ${escapeHtml(l.primeira_mensagem.substring(0, 180))}${l.primeira_mensagem.length > 180 ? '…' : ''}
       </div>` : '';
 
@@ -392,14 +391,14 @@
     let botoesHTML = '';
     if (ehAguardando) {
       botoesHTML = `
-        <button class="btn-liberar" onclick="confirmar('liberar','${tel}','${nome}')">🤖 Liberar Bia</button>
-        <button class="btn-sec" title="Atender pessoalmente" onclick="confirmar('atender','${tel}','${nome}')">👤</button>
-        <button class="btn-del" title="Excluir" onclick="confirmar('excluir','${tel}','${nome}')">🗑</button>`;
+        <button class="btn-liberar" onclick="confirmar('liberar','${tel}','${nome}')">Liberar Bia</button>
+        <button class="btn-sec" title="Atender pessoalmente" onclick="confirmar('atender','${tel}','${nome}')">Atender</button>
+        <button class="btn-del" title="Excluir" onclick="confirmar('excluir','${tel}','${nome}')">Excluir</button>`;
     } else {
       botoesHTML = `
-        <button class="btn-main" ${podRetomar?'':'disabled'} onclick="confirmar('retomar','${tel}','${nome}')">▶ Retomar agente</button>
-        <button class="btn-sec" title="Finalizar conversa" onclick="confirmar('finalizar','${tel}','${nome}')">✕</button>
-        <button class="btn-del" title="Excluir lead" onclick="confirmar('excluir','${tel}','${nome}')">🗑</button>`;
+        <button class="btn-main" ${podRetomar?'':'disabled'} onclick="confirmar('retomar','${tel}','${nome}')">Retomar agente</button>
+        <button class="btn-sec" title="Finalizar conversa" onclick="confirmar('finalizar','${tel}','${nome}')">Finalizar</button>
+        <button class="btn-del" title="Excluir lead" onclick="confirmar('excluir','${tel}','${nome}')">Excluir</button>`;
     }
 
     return `
@@ -413,11 +412,11 @@
       <div class="card-phone">+${tel}</div>
       ${primeiraMsgHTML}
       <div class="card-tags">
-        ${fase ? '<span class="tag">📚 '+fase+'</span>' : ''}
-        ${l.maior_dificuldade ? '<span class="tag">⚡ '+l.maior_dificuldade+'</span>' : ''}
-        ${l.presta_residencia_esse_ano ? '<span class="tag">📖 Prova esse ano</span>' : ''}
+        ${fase ? '<span class="tag">'+fase+'</span>' : ''}
+        ${l.maior_dificuldade ? '<span class="tag">'+l.maior_dificuldade+'</span>' : ''}
+        ${l.presta_residencia_esse_ano ? '<span class="tag">Prova esse ano</span>' : ''}
       </div>
-      <div class="card-time">🕐 ${tempo}</div>
+      <div class="card-time">${tempo}</div>
       <div class="card-actions">${botoesHTML}</div>
     </div>`;
   }
@@ -431,14 +430,13 @@
   function confirmar(tipo, tel, nome) {
     acao = { tipo, tel, nome };
     const cfg = {
-      liberar:   ['🤖','Liberar Bia para atender?',   `A Bia vai assumir o atendimento de ${nome} automaticamente.`, '🤖 Liberar Bia', 'var(--orange)', '#000'],
-      atender:   ['👤','Atender pessoalmente?',         `${nome} ficará em pausa e o Davi assume o atendimento.`,      '👤 Atender',      'var(--green)',  '#000'],
-      retomar:   ['▶', 'Retomar atendimento?',          `O agente voltará a responder ${nome} automaticamente.`,       '▶ Retomar',       'var(--green)',  '#000'],
-      finalizar: ['✕', 'Finalizar conversa?',           `A conversa com ${nome} será encerrada.`,                       'Finalizar',       'var(--red)',    '#fff'],
-      excluir:   ['🗑','Excluir lead permanentemente?', `Todos os dados de ${nome} serão removidos. Irreversível.`,     '🗑 Excluir',       'var(--red)',    '#fff'],
+      liberar:   ['','Liberar Bia para atender?',   `A Bia vai assumir o atendimento de ${nome} automaticamente.`, 'Liberar Bia', 'var(--orange)', '#000'],
+      atender:   ['','Atender pessoalmente?',         `${nome} ficará em pausa e o Davi assume o atendimento.`,      'Atender',      'var(--green)',  '#000'],
+      retomar:   ['','Retomar atendimento?',          `O agente voltará a responder ${nome} automaticamente.`,       'Retomar',       'var(--green)',  '#000'],
+      finalizar: ['','Finalizar conversa?',           `A conversa com ${nome} será encerrada.`,                       'Finalizar',       'var(--red)',    '#fff'],
+      excluir:   ['','Excluir lead permanentemente?', `Todos os dados de ${nome} serão removidos. Irreversível.`,     'Excluir',       'var(--red)',    '#fff'],
     };
     const c = cfg[tipo];
-    document.getElementById('modal-icon').textContent  = c[0];
     document.getElementById('modal-title').textContent = c[1];
     document.getElementById('modal-sub').textContent   = c[2];
     const btn = document.getElementById('modal-btn');
@@ -466,24 +464,24 @@
         // Chama endpoint do Railway para liberar a Bia
         const r = await fetch(RAILWAY_URL + '/liberar/' + tel, { method: 'POST' });
         if (!r.ok) throw new Error('Erro ao liberar: ' + r.status);
-        toast('success', '🤖 Bia liberada para ' + nome);
+        toast('success', 'Bia liberada para ' + nome);
 
       } else if (tipo === 'atender') {
         // Marca como PASSAR_HUMANO — Davi atende pessoalmente
         await fetch(SUPABASE_URL + '/rest/v1/leads?telefone=eq.' + tel, {
           method: 'PATCH', headers,
-          body: JSON.stringify({ status_conversa: 'PASSAR_HUMANO', tag_crm: '👤 DAVI_ATENDE', updated_at: new Date().toISOString() })
+          body: JSON.stringify({ status_conversa: 'PASSAR_HUMANO', tag_crm: 'DAVI_ATENDE', updated_at: new Date().toISOString() })
         });
         await fetch(SUPABASE_URL + '/rest/v1/conversas?telefone=eq.' + tel, {
           method: 'PATCH', headers,
           body: JSON.stringify({ status_conversa: 'PASSAR_HUMANO', updated_at: new Date().toISOString() })
         });
-        toast('success', '👤 ' + nome + ' marcado para atendimento pessoal');
+        toast('success', nome + ' marcado para atendimento pessoal');
 
       } else if (tipo === 'retomar') {
         const r = await fetch(RAILWAY_URL + '/retomar/' + tel, { method: 'POST' });
         if (!r.ok) throw new Error('Erro ao retomar: ' + r.status);
-        toast('success', '✅ Agente retomado para ' + nome);
+        toast('success', 'Agente retomado para ' + nome);
 
       } else if (tipo === 'finalizar') {
         await fetch(SUPABASE_URL + '/rest/v1/leads?telefone=eq.' + tel, {
@@ -494,7 +492,7 @@
           method: 'PATCH', headers,
           body: JSON.stringify({ status_conversa: 'FINALIZADO_SUCESSO', updated_at: new Date().toISOString() })
         });
-        toast('success', '✅ Conversa com ' + nome + ' finalizada');
+        toast('success', 'Conversa com ' + nome + ' finalizada');
 
       } else if (tipo === 'excluir') {
         await fetch(SUPABASE_URL + '/rest/v1/leads?telefone=eq.' + tel,    { method: 'DELETE', headers });
@@ -507,11 +505,11 @@
         }
         leads = leads.filter(l => l.telefone !== tel);
         atualizarStats(); atualizarContadores();
-        toast('success', '🗑 Lead ' + nome + ' excluído');
+        toast('success', 'Lead ' + nome + ' excluído');
         return;
       }
     } catch(e) {
-      toast('error', '❌ Erro: ' + (e.message || 'Tente novamente'));
+      toast('error', 'Erro: ' + (e.message || 'Tente novamente'));
       return;
     }
     setTimeout(carregarDados, 800);
@@ -533,7 +531,7 @@
 
   function toast(type, msg) {
     const t = document.getElementById('toast');
-    document.getElementById('toast-icon').textContent = type==='success' ? '✅' : '❌';
+    document.getElementById('toast-icon').textContent = '';
     document.getElementById('toast-msg').textContent  = msg;
     t.className = 'toast ' + type + ' show';
     setTimeout(() => t.classList.remove('show'), 3500);
