@@ -1,6 +1,11 @@
 """
 Servidor FastAPI - MindMed
 Recebe webhooks do WhatsApp via Z-API e processa com o agente IA.
+
+PORTÃO DE LIBERAÇÃO:
+  Toda mensagem recebida é salva com status AGUARDANDO_LIBERACAO.
+  A Bia só responde após o Davi liberar manualmente pelo painel.
+  Após liberação, o fluxo normal da Bia é executado integralmente.
 """
 
 import os
@@ -170,6 +175,84 @@ def eh_mensagem_de_grupo(body: dict) -> bool:
 
 
 # ============================================================================
+# PORTÃO DE LIBERAÇÃO
+#
+# Toda mensagem recebida passa pelo portão antes de chegar ao agente.
+# Se o contato estiver AGUARDANDO_LIBERACAO, salva a mensagem e para.
+# Se o contato já foi liberado (CONTINUAR ou outro status ativo), processa.
+# ============================================================================
+
+
+def _verificar_status_portao(telefone: str) -> str:
+    """
+    Retorna o status_conversa atual do contato.
+    Se não existir registro, retorna None (será criado como AGUARDANDO_LIBERACAO).
+    """
+    try:
+        resultado = _supabase_dedup.table("conversas").select("status_conversa").eq(
+            "telefone", telefone
+        ).limit(1).execute()
+        if resultado.data:
+            return resultado.data[0].get("status_conversa")
+        return None
+    except Exception as e:
+        log.error(f"❌ Erro ao verificar portão para {telefone}: {e}")
+        return None
+
+
+def _registrar_aguardando(telefone: str, primeira_mensagem: str):
+    """
+    Cria ou atualiza registro do contato como AGUARDANDO_LIBERACAO.
+    Salva a primeira mensagem para o Davi ver no painel.
+    Se já existe registro aguardando, apenas acumula a mensagem.
+    """
+    try:
+        agora = datetime.now(timezone.utc).isoformat()
+
+        # Verifica se já existe
+        resultado = _supabase_dedup.table("conversas").select("*").eq(
+            "telefone", telefone
+        ).limit(1).execute()
+
+        if resultado.data:
+            estado = resultado.data[0]
+            # Acumula mensagens enquanto aguarda
+            historico = estado.get("historico", []) or []
+            historico.append({"role": "user", "content": primeira_mensagem})
+            _supabase_dedup.table("conversas").update({
+                "historico": historico[-20:],
+                "updated_at": agora
+            }).eq("telefone", telefone).execute()
+            log.info(f"📩 Mensagem acumulada (aguardando) | {telefone}: {primeira_mensagem[:40]}")
+        else:
+            # Cria novo registro
+            _supabase_dedup.table("conversas").insert({
+                "telefone": telefone,
+                "status_conversa": "AGUARDANDO_LIBERACAO",
+                "historico": [{"role": "user", "content": primeira_mensagem}],
+                "primeira_mensagem": primeira_mensagem[:500],
+                "contador_mensagens_alex": 0,
+                "updated_at": agora
+            }).execute()
+
+            # Cria lead também
+            try:
+                _supabase_dedup.table("leads").upsert({
+                    "telefone": telefone,
+                    "status_conversa": "AGUARDANDO_LIBERACAO",
+                    "tag_crm": "⏳ AGUARDANDO",
+                    "updated_at": agora
+                }, on_conflict="telefone").execute()
+            except Exception:
+                pass
+
+            log.info(f"⏳ Novo contato registrado — aguardando liberação | {telefone}: {primeira_mensagem[:40]}")
+
+    except Exception as e:
+        log.error(f"❌ Erro ao registrar contato aguardando: {e}")
+
+
+# ============================================================================
 # WEBHOOK — Z-API
 # ============================================================================
 
@@ -178,8 +261,8 @@ def eh_mensagem_de_grupo(body: dict) -> bool:
 async def receber_zapi(request: Request, background_tasks: BackgroundTasks):
     """
     Recebe mensagens de WhatsApp via Z-API.
-    Processa apenas ReceivedCallback (mensagens dos alunos).
-    SentCallback é ignorado — o Davi atende manualmente e retoma pelo painel.
+    Todo contato entra em AGUARDANDO_LIBERACAO primeiro.
+    Só processa com a Bia após liberação manual pelo Davi no painel.
     """
     client_token = request.headers.get("client-token", "")
     if ZAPI_CLIENT_TOKEN and client_token and client_token != ZAPI_CLIENT_TOKEN:
@@ -204,13 +287,12 @@ async def receber_zapi(request: Request, background_tasks: BackgroundTasks):
     if "@newsletter" in telefone_raw or "@broadcast" in telefone_raw:
         return JSONResponse({"status": "ignored", "reason": "newsletter"})
 
-    # Aceita apenas ReceivedCallback (mensagens dos alunos)
-    # SentCallback ignorado — Davi atende manualmente e retoma pelo painel
+    # Aceita apenas ReceivedCallback (mensagens dos contatos)
     tipo = body.get("type", "")
     if tipo != "ReceivedCallback":
         return JSONResponse({"status": "ignored", "reason": f"type_{tipo}"})
 
-    # Ignora mensagens enviadas pelo próprio número (segurança extra)
+    # Ignora mensagens enviadas pelo próprio número
     if body.get("fromMe", False):
         return JSONResponse({"status": "ignored", "reason": "from_me"})
 
@@ -239,9 +321,31 @@ async def receber_zapi(request: Request, background_tasks: BackgroundTasks):
 
     log.info(f"📨 Z-API | {telefone}: {texto[:60]}")
 
-    # Buffer + fila — agrupa mensagens rápidas e serializa por telefone
-    background_tasks.add_task(enfileirar_mensagem, telefone=telefone, mensagem=texto)
+    # ================================================================
+    # PORTÃO DE LIBERAÇÃO
+    # Verifica se o contato já foi liberado pelo Davi.
+    # Se não, registra e aguarda — não processa com a Bia.
+    # ================================================================
+    status_atual = _verificar_status_portao(telefone)
 
+    status_bloqueados = [
+        "AGUARDANDO_LIBERACAO",
+        "PASSAR_HUMANO",
+        "FINALIZADO_SUCESSO",
+        "FINALIZADO_RECUSOU",
+        "FINALIZADO_NAO_QUALIFICADO",
+        "FINALIZADO_INATIVO",
+        "FINALIZADO_ERRO",
+    ]
+
+    if status_atual in status_bloqueados or status_atual is None:
+        # Novo contato (None) ou aguardando/pausado/finalizado — registra e para
+        background_tasks.add_task(_registrar_aguardando, telefone=telefone, primeira_mensagem=texto)
+        log.info(f"⏳ Portão fechado [{status_atual or 'NOVO'}] — {telefone} aguardando liberação")
+        return JSONResponse({"status": "waiting_approval"})
+
+    # Contato liberado — processa normalmente com buffer + fila
+    background_tasks.add_task(enfileirar_mensagem, telefone=telefone, mensagem=texto)
     return JSONResponse({"status": "received"})
 
 
@@ -372,16 +476,48 @@ async def enviar_mensagem_zapi(telefone: str, texto: str):
 
 
 # ============================================================================
-# ENDPOINT DE RETOMAR AGENTE
+# ENDPOINT DE LIBERAR BIA
+# Davi clica "Liberar Bia" no painel — muda status para CONTINUAR
+# e a Bia entra no fluxo normal na próxima mensagem do contato.
+# ============================================================================
+
+
+@app.post("/liberar/{telefone}")
+async def liberar_bia(telefone: str):
+    try:
+        agora = datetime.now(timezone.utc).isoformat()
+
+        _supabase_dedup.table("conversas").update({
+            "status_conversa": "CONTINUAR",
+            "updated_at": agora
+        }).eq("telefone", telefone).execute()
+
+        _supabase_dedup.table("leads").update({
+            "status_conversa": "CONTINUAR",
+            "tag_crm": "🔵 EM_ATENDIMENTO",
+            "updated_at": agora
+        }).eq("telefone", telefone).execute()
+
+        log.info(f"✅ Bia liberada para {telefone}")
+        return JSONResponse({"sucesso": True, "telefone": telefone})
+    except Exception as e:
+        log.error(f"❌ Erro ao liberar Bia para {telefone}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# ENDPOINT DE RETOMAR AGENTE (usado após PASSAR_HUMANO)
 # ============================================================================
 
 
 @app.post("/retomar/{telefone}")
 async def retomar_agente(telefone: str):
     try:
+        agora = datetime.now(timezone.utc).isoformat()
+
         _supabase_dedup.table("conversas").update({
             "status_conversa": "CONTINUAR",
-            "updated_at": datetime.now(timezone.utc).isoformat()
+            "updated_at": agora
         }).eq("telefone", telefone).execute()
 
         _supabase_dedup.table("leads").update({
