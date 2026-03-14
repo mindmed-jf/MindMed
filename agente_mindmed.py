@@ -710,7 +710,8 @@ class GestorConversasMindMed:
 
             status_finalizados = [
                 "FINALIZADO_RECUSOU", "FINALIZADO_SUCESSO", "FINALIZADO_INATIVO",
-                "FINALIZADO_NAO_QUALIFICADO", "FINALIZADO_ERRO"
+                "FINALIZADO_NAO_QUALIFICADO", "FINALIZADO_ERRO",
+                "AGUARDANDO_LIBERACAO"  # portão — Davi ainda não liberou
             ]
             if estado.get("status_conversa") in status_finalizados:
                 print(f"ℹ️ Conversa já encerrada com status {estado['status_conversa']}")
