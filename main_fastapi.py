@@ -478,15 +478,31 @@ async def enviar_mensagem_zapi(telefone: str, texto: str):
 # ============================================================================
 # ENDPOINT DE LIBERAR BIA
 # Davi clica "Liberar Bia" no painel — muda status para CONTINUAR
-# e a Bia entra no fluxo normal na próxima mensagem do contato.
+# e processa automaticamente a primeira mensagem salva do contato,
+# fazendo a Bia responder imediatamente sem esperar nova mensagem.
 # ============================================================================
 
 
 @app.post("/liberar/{telefone}")
-async def liberar_bia(telefone: str):
+async def liberar_bia(telefone: str, background_tasks: BackgroundTasks):
     try:
         agora = datetime.now(timezone.utc).isoformat()
 
+        # Busca histórico para pegar a primeira mensagem do contato
+        resultado = _supabase_dedup.table("conversas").select("*").eq(
+            "telefone", telefone
+        ).limit(1).execute()
+
+        primeira_mensagem = None
+        if resultado.data:
+            historico = resultado.data[0].get("historico", []) or []
+            # Pega a primeira mensagem do usuário no histórico
+            for msg in historico:
+                if msg.get("role") == "user":
+                    primeira_mensagem = msg.get("content", "")
+                    break
+
+        # Atualiza status para CONTINUAR
         _supabase_dedup.table("conversas").update({
             "status_conversa": "CONTINUAR",
             "updated_at": agora
@@ -499,6 +515,16 @@ async def liberar_bia(telefone: str):
         }).eq("telefone", telefone).execute()
 
         log.info(f"✅ Bia liberada para {telefone}")
+
+        # Se tem mensagem salva, processa automaticamente com o agente
+        if primeira_mensagem:
+            log.info(f"🤖 Processando mensagem automaticamente após liberação | {telefone}: {primeira_mensagem[:50]}")
+            background_tasks.add_task(
+                processar_e_responder_zapi,
+                telefone=telefone,
+                mensagem=primeira_mensagem
+            )
+
         return JSONResponse({"sucesso": True, "telefone": telefone})
     except Exception as e:
         log.error(f"❌ Erro ao liberar Bia para {telefone}: {e}")
