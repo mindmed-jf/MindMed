@@ -22,529 +22,196 @@
     --yellow-dim:    rgba(240,192,64,0.1);
     --purple:        #a855f7;
     --purple-dim:    rgba(168,85,247,0.1);
+    --orange:        #ff9500;
+    --orange-dim:    rgba(255,149,0,0.1);
+    --orange-border: rgba(255,149,0,0.4);
     --text:          #ffffff;
     --text-muted:    #4a6080;
     --text-dim:      #7a9ab8;
   }
   * { margin:0; padding:0; box-sizing:border-box; }
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: 'Inter', -apple-system, sans-serif;
-    min-height: 100vh;
-  }
+  body { background: var(--bg); color: var(--text); font-family: 'Inter', -apple-system, sans-serif; min-height: 100vh; }
 
-  /* ── HEADER ── */
   header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0 48px;
-    height: 72px;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 48px; height: 72px;
     border-bottom: 1px solid var(--border);
-    background: rgba(7,17,32,0.98);
-    backdrop-filter: blur(16px);
-    position: sticky;
-    top: 0;
-    z-index: 100;
+    background: rgba(7,17,32,0.98); backdrop-filter: blur(16px);
+    position: sticky; top: 0; z-index: 100;
   }
-  .logo img {
-    height: 156px;
-    filter: brightness(0) invert(1);
-  }
+  .logo img { height: 156px; filter: brightness(0) invert(1); }
   .header-label {
-    position: absolute;
-    left: 50%;
-    transform: translateX(-50%);
-    font-size: 0.7rem;
-    font-weight: 700;
-    letter-spacing: 0.2em;
-    text-transform: uppercase;
-    color: var(--text-muted);
+    position: absolute; left: 50%; transform: translateX(-50%);
+    font-size: 0.7rem; font-weight: 700; letter-spacing: 0.2em;
+    text-transform: uppercase; color: var(--text-muted);
   }
   .badge-live {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 0.72rem;
-    font-weight: 700;
-    color: var(--green);
-    background: var(--green-glow);
-    border: 1px solid var(--green-border);
-    padding: 7px 16px;
-    border-radius: 100px;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
+    display: flex; align-items: center; gap: 8px;
+    font-size: 0.72rem; font-weight: 700; color: var(--green);
+    background: var(--green-glow); border: 1px solid var(--green-border);
+    padding: 7px 16px; border-radius: 100px; letter-spacing: 0.08em; text-transform: uppercase;
   }
-  .dot-pulse {
-    width: 7px; height: 7px;
-    border-radius: 50%;
-    background: var(--green);
-    animation: pulse-dot 2s ease-in-out infinite;
-  }
-  @keyframes pulse-dot {
-    0%,100% { opacity:1; box-shadow:0 0 0 0 rgba(0,208,132,0.5); }
-    50%      { opacity:0.8; box-shadow:0 0 0 6px rgba(0,208,132,0); }
-  }
+  .dot-pulse { width: 7px; height: 7px; border-radius: 50%; background: var(--green); animation: pulse-dot 2s ease-in-out infinite; }
+  @keyframes pulse-dot { 0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(0,208,132,0.5);}50%{opacity:0.8;box-shadow:0 0 0 6px rgba(0,208,132,0);} }
 
-  /* ── STATS ── */
-  .stats-bar {
-    display: grid;
-    grid-template-columns: repeat(4,1fr);
-    border-bottom: 1px solid var(--border);
-  }
-  .stat {
-    padding: 28px 40px;
-    border-right: 1px solid var(--border);
-    position: relative;
-    overflow: hidden;
-  }
+  .stats-bar { display: grid; grid-template-columns: repeat(5,1fr); border-bottom: 1px solid var(--border); }
+  .stat { padding: 28px 32px; border-right: 1px solid var(--border); position: relative; overflow: hidden; }
   .stat:last-child { border-right: none; }
-  .stat-number {
-    font-size: 3rem;
-    font-weight: 900;
-    line-height: 1;
-    color: var(--green);
-    font-variant-numeric: tabular-nums;
-    letter-spacing: -0.02em;
-  }
-  .stat-label {
-    font-size: 0.7rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.12em;
-    color: var(--text-muted);
-    margin-top: 6px;
-  }
-  .stat-sub {
-    font-size: 0.75rem;
-    color: var(--text-dim);
-    margin-top: 3px;
-  }
-  .stat::after {
-    content: '';
-    position: absolute;
-    bottom: 0; left: 0; right: 0;
-    height: 2px;
-    background: linear-gradient(90deg, var(--green) 0%, transparent 100%);
-    opacity: 0.3;
-  }
+  .stat-number { font-size: 3rem; font-weight: 900; line-height: 1; color: var(--green); font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+  .stat-label { font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.12em; color: var(--text-muted); margin-top: 6px; }
+  .stat-sub { font-size: 0.75rem; color: var(--text-dim); margin-top: 3px; }
+  .stat::after { content:''; position:absolute; bottom:0; left:0; right:0; height:2px; background:linear-gradient(90deg,var(--green) 0%,transparent 100%); opacity:0.3; }
 
-  /* ── MAIN ── */
-  main {
-    padding: 40px 48px;
-    max-width: 1440px;
-    margin: 0 auto;
-  }
+  main { padding: 40px 48px; max-width: 1440px; margin: 0 auto; }
 
-  /* ── PAGE TITLE ── */
-  .page-title {
-    margin-bottom: 32px;
-  }
-  .page-title h1 {
-    font-size: 1.75rem;
-    font-weight: 900;
-    letter-spacing: -0.02em;
-    line-height: 1.1;
-  }
+  .page-title { margin-bottom: 32px; }
+  .page-title h1 { font-size: 1.75rem; font-weight: 900; letter-spacing: -0.02em; line-height: 1.1; }
   .page-title h1 span { color: var(--green); }
-  .page-title p {
-    color: var(--text-dim);
-    font-size: 0.85rem;
-    margin-top: 6px;
-  }
+  .page-title p { color: var(--text-dim); font-size: 0.85rem; margin-top: 6px; }
 
-  /* ── TOOLBAR ── */
-  .toolbar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 24px;
-  }
-  .tabs {
-    display: flex;
-    gap: 2px;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 4px;
-  }
+  .toolbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+  .tabs { display: flex; gap: 2px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 4px; }
   .tab {
-    padding: 8px 18px;
-    border-radius: 7px;
-    border: none;
-    background: none;
-    color: var(--text-muted);
-    font-family: 'Inter', sans-serif;
-    font-size: 0.8rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.15s;
-    display: flex;
-    align-items: center;
-    gap: 7px;
-    letter-spacing: 0.02em;
+    padding: 8px 18px; border-radius: 7px; border: none; background: none;
+    color: var(--text-muted); font-family: 'Inter', sans-serif; font-size: 0.8rem; font-weight: 600;
+    cursor: pointer; transition: all 0.15s; display: flex; align-items: center; gap: 7px; letter-spacing: 0.02em;
   }
-  .tab.active {
-    background: var(--surface2);
-    color: var(--text);
-    border: 1px solid var(--border);
-  }
+  .tab.active { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
   .tab-dot { width:6px; height:6px; border-radius:50%; }
-  .tab-count {
-    background: rgba(255,255,255,0.07);
-    border-radius: 20px;
-    padding: 1px 7px;
-    font-size: 0.7rem;
-    color: var(--text-dim);
-  }
-  .tab.active .tab-count {
-    background: var(--green-glow);
-    color: var(--green);
-  }
+  .tab-count { background: rgba(255,255,255,0.07); border-radius: 20px; padding: 1px 7px; font-size: 0.7rem; color: var(--text-dim); }
+  .tab.active .tab-count { background: var(--green-glow); color: var(--green); }
+  .tab.tab-aguardando.active .tab-count { background: var(--orange-dim); color: var(--orange); }
   .btn-refresh {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    color: var(--text-dim);
-    padding: 9px 20px;
-    border-radius: 8px;
-    cursor: pointer;
-    font-family: 'Inter', sans-serif;
-    font-size: 0.8rem;
-    font-weight: 600;
-    transition: all 0.15s;
-    letter-spacing: 0.03em;
+    display: flex; align-items: center; gap: 8px;
+    background: var(--surface); border: 1px solid var(--border); color: var(--text-dim);
+    padding: 9px 20px; border-radius: 8px; cursor: pointer;
+    font-family: 'Inter', sans-serif; font-size: 0.8rem; font-weight: 600; transition: all 0.15s;
   }
   .btn-refresh:hover { border-color: var(--green-border); color: var(--green); }
 
-  /* ── CARDS GRID ── */
-  .cards-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-    gap: 20px;
-  }
+  .cards-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px; }
 
-  /* ── CARD ── */
   .card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    padding: 24px;
-    transition: transform 0.2s, box-shadow 0.2s;
-    position: relative;
-    overflow: hidden;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+    padding: 24px; transition: transform 0.2s, box-shadow 0.2s; position: relative; overflow: hidden;
   }
-  .card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+  .card:hover { transform: translateY(-2px); box-shadow: 0 8px 32px rgba(0,0,0,0.3); }
+  .card.aguardando {
+    border-color: var(--orange-border);
+    box-shadow: 0 0 0 1px rgba(255,149,0,0.08), inset 0 0 30px rgba(255,149,0,0.03);
   }
-  .card.paused {
-    border-color: var(--green-border);
-    box-shadow: 0 0 0 1px rgba(0,208,132,0.1), inset 0 0 30px rgba(0,208,132,0.03);
+  .card.aguardando::before {
+    content:''; position:absolute; top:0; left:0; right:0; height:1px;
+    background: linear-gradient(90deg, transparent, var(--orange), transparent);
   }
-  .card.paused::before {
-    content: '';
-    position: absolute;
-    top: 0; left: 0; right: 0;
-    height: 1px;
-    background: linear-gradient(90deg, transparent, var(--green), transparent);
-  }
-  .card.trial {
-    border-color: rgba(240,192,64,0.4);
-    box-shadow: 0 0 0 1px rgba(240,192,64,0.08);
-  }
-  .card.fechar {
-    border-color: rgba(168,85,247,0.4);
-    box-shadow: 0 0 0 1px rgba(168,85,247,0.08);
-  }
+  .card.paused { border-color: var(--green-border); box-shadow: 0 0 0 1px rgba(0,208,132,0.1), inset 0 0 30px rgba(0,208,132,0.03); }
+  .card.paused::before { content:''; position:absolute; top:0; left:0; right:0; height:1px; background: linear-gradient(90deg,transparent,var(--green),transparent); }
+  .card.trial { border-color: rgba(240,192,64,0.4); box-shadow: 0 0 0 1px rgba(240,192,64,0.08); }
+  .card.fechar { border-color: rgba(168,85,247,0.4); box-shadow: 0 0 0 1px rgba(168,85,247,0.08); }
 
-  .card-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 18px;
-  }
+  .card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
+  .card-num { font-size: 2rem; font-weight: 900; line-height: 1; color: var(--green); opacity: 0.15; position: absolute; top: 14px; right: 18px; letter-spacing: -0.04em; pointer-events: none; }
+  .avatar { width: 44px; height: 44px; border-radius: 11px; background: var(--surface2); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; font-size: 1.1rem; font-weight: 800; color: var(--green); }
+  .avatar.orange { color: var(--orange); }
 
-  .card-num {
-    font-size: 2rem;
-    font-weight: 900;
-    line-height: 1;
-    color: var(--green);
-    opacity: 0.15;
-    position: absolute;
-    top: 14px;
-    right: 18px;
-    letter-spacing: -0.04em;
-    pointer-events: none;
-  }
+  .status-chip { padding: 5px 12px; border-radius: 100px; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+  .chip-aguardando { background: var(--orange-dim); color: var(--orange); border: 1px solid var(--orange-border); }
+  .chip-paused   { background: rgba(0,208,132,0.1);  color: var(--green);   border: 1px solid var(--green-border); }
+  .chip-trial    { background: var(--yellow-dim);     color: var(--yellow);  border: 1px solid rgba(240,192,64,0.3); }
+  .chip-active   { background: rgba(74,96,128,0.15);  color: var(--text-dim);border: 1px solid var(--border); }
+  .chip-fechar   { background: var(--purple-dim);     color: var(--purple);  border: 1px solid rgba(168,85,247,0.3); }
+  .chip-done     { background: rgba(255,71,87,0.1);   color: var(--red);     border: 1px solid rgba(255,71,87,0.3); }
 
-  .avatar {
-    width: 44px; height: 44px;
-    border-radius: 11px;
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.1rem;
-    font-weight: 800;
-    color: var(--green);
-    letter-spacing: -0.02em;
-  }
+  .card-name { font-size: 1.05rem; font-weight: 800; letter-spacing: -0.01em; margin-bottom: 3px; }
+  .card-phone { font-size: 0.75rem; color: var(--text-muted); font-variant-numeric: tabular-nums; }
 
-  .status-chip {
-    padding: 5px 12px;
-    border-radius: 100px;
-    font-size: 0.68rem;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
+  /* Primeira mensagem — visível apenas em cards aguardando */
+  .primeira-msg {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 8px; padding: 10px 12px; margin: 12px 0;
+    font-size: 0.78rem; color: var(--text-dim); line-height: 1.5;
+    font-style: italic;
   }
-  .chip-paused  { background:rgba(0,208,132,0.1);   color:var(--green);  border:1px solid var(--green-border); }
-  .chip-trial   { background:var(--yellow-dim);      color:var(--yellow); border:1px solid rgba(240,192,64,0.3); }
-  .chip-active  { background:rgba(74,96,128,0.15);   color:var(--text-dim); border:1px solid var(--border); }
-  .chip-fechar  { background:var(--purple-dim);      color:var(--purple); border:1px solid rgba(168,85,247,0.3); }
-  .chip-done    { background:rgba(255,71,87,0.1);    color:var(--red);    border:1px solid rgba(255,71,87,0.3); }
+  .primeira-msg-label { font-size: 0.65rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 4px; font-style: normal; }
 
-  .card-name {
-    font-size: 1.05rem;
-    font-weight: 800;
-    letter-spacing: -0.01em;
-    margin-bottom: 3px;
-  }
-  .card-phone {
-    font-size: 0.75rem;
-    color: var(--text-muted);
-    font-variant-numeric: tabular-nums;
-    letter-spacing: 0.03em;
-  }
-
-  .card-tags {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    margin: 14px 0;
-  }
-  .tag {
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    padding: 4px 10px;
-    border-radius: 6px;
-    font-size: 0.72rem;
-    color: var(--text-dim);
-    font-weight: 500;
-  }
-
-  .card-time {
-    font-size: 0.72rem;
-    color: var(--text-muted);
-    margin-bottom: 16px;
-    display: flex;
-    align-items: center;
-    gap: 5px;
-  }
-
+  .card-tags { display: flex; flex-wrap: wrap; gap: 6px; margin: 14px 0; }
+  .tag { background: var(--surface2); border: 1px solid var(--border); padding: 4px 10px; border-radius: 6px; font-size: 0.72rem; color: var(--text-dim); font-weight: 500; }
+  .card-time { font-size: 0.72rem; color: var(--text-muted); margin-bottom: 16px; display: flex; align-items: center; gap: 5px; }
   .card-actions { display:flex; gap:8px; }
 
+  /* Botão Liberar Bia — destaque laranja */
+  .btn-liberar {
+    flex: 1; padding: 11px; border-radius: 9px; cursor: pointer;
+    font-family: 'Inter', sans-serif; font-size: 0.82rem; font-weight: 700;
+    display: flex; align-items: center; justify-content: center; gap: 7px;
+    transition: all 0.15s; letter-spacing: 0.02em;
+    border: 1px solid var(--orange-border); background: var(--orange-dim); color: var(--orange);
+  }
+  .btn-liberar:hover { background: var(--orange); color: #000; box-shadow: 0 4px 20px rgba(255,149,0,0.3); }
+
   .btn-main {
-    flex: 1;
-    padding: 11px;
-    border-radius: 9px;
-    cursor: pointer;
-    font-family: 'Inter', sans-serif;
-    font-size: 0.82rem;
-    font-weight: 700;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 7px;
-    transition: all 0.15s;
-    letter-spacing: 0.02em;
-    border: 1px solid var(--green-border);
-    background: var(--green-glow);
-    color: var(--green);
+    flex: 1; padding: 11px; border-radius: 9px; cursor: pointer;
+    font-family: 'Inter', sans-serif; font-size: 0.82rem; font-weight: 700;
+    display: flex; align-items: center; justify-content: center; gap: 7px;
+    transition: all 0.15s; letter-spacing: 0.02em;
+    border: 1px solid var(--green-border); background: var(--green-glow); color: var(--green);
   }
-  .btn-main:hover:not(:disabled) {
-    background: var(--green);
-    color: #000;
-    box-shadow: 0 4px 20px rgba(0,208,132,0.3);
-  }
+  .btn-main:hover:not(:disabled) { background: var(--green); color: #000; box-shadow: 0 4px 20px rgba(0,208,132,0.3); }
   .btn-main:disabled { opacity:0.25; cursor:default; }
 
-  .btn-sec {
-    padding: 11px 14px;
-    border-radius: 9px;
-    cursor: pointer;
-    font-family: 'Inter', sans-serif;
-    font-size: 0.82rem;
-    font-weight: 600;
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    color: var(--text-muted);
-    transition: all 0.15s;
-  }
+  .btn-sec { padding: 11px 14px; border-radius: 9px; cursor: pointer; font-family: 'Inter', sans-serif; font-size: 0.82rem; font-weight: 600; background: var(--surface2); border: 1px solid var(--border); color: var(--text-muted); transition: all 0.15s; }
   .btn-sec:hover { border-color:var(--red); color:var(--red); }
+  .btn-del { padding: 11px 14px; border-radius: 9px; cursor: pointer; font-family: 'Inter', sans-serif; font-size: 0.88rem; font-weight: 600; background: rgba(255,71,87,0.07); border: 1px solid rgba(255,71,87,0.25); color: var(--red); transition: all 0.15s; display: flex; align-items: center; justify-content: center; }
+  .btn-del:hover { background: var(--red); color: #fff; border-color: var(--red); box-shadow: 0 4px 16px rgba(255,71,87,0.3); }
 
-  .btn-del {
-    padding: 11px 14px;
-    border-radius: 9px;
-    cursor: pointer;
-    font-family: 'Inter', sans-serif;
-    font-size: 0.88rem;
-    font-weight: 600;
-    background: rgba(255,71,87,0.07);
-    border: 1px solid rgba(255,71,87,0.25);
-    color: var(--red);
-    transition: all 0.15s;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  .btn-del:hover {
-    background: var(--red);
-    color: #fff;
-    border-color: var(--red);
-    box-shadow: 0 4px 16px rgba(255,71,87,0.3);
-  }
-
-  /* ── EMPTY STATE ── */
-  .empty {
-    grid-column: 1/-1;
-    text-align: center;
-    padding: 80px 20px;
-  }
+  .empty { grid-column: 1/-1; text-align: center; padding: 80px 20px; }
   .empty-icon { font-size: 3rem; margin-bottom: 16px; }
-  .empty-title {
-    font-size: 1.1rem;
-    font-weight: 700;
-    color: var(--text-dim);
-    margin-bottom: 6px;
-  }
+  .empty-title { font-size: 1.1rem; font-weight: 700; color: var(--text-dim); margin-bottom: 6px; }
   .empty-sub { font-size: 0.82rem; color: var(--text-muted); }
 
-  /* ── MODAL ── */
-  .overlay {
-    position: fixed; inset:0;
-    background: rgba(0,0,0,0.75);
-    backdrop-filter: blur(6px);
-    z-index: 200;
-    display: flex; align-items:center; justify-content:center;
-    opacity:0; pointer-events:none;
-    transition: opacity 0.2s;
-  }
+  .overlay { position: fixed; inset:0; background: rgba(0,0,0,0.75); backdrop-filter: blur(6px); z-index: 200; display: flex; align-items:center; justify-content:center; opacity:0; pointer-events:none; transition: opacity 0.2s; }
   .overlay.show { opacity:1; pointer-events:all; }
-  .modal {
-    background: var(--surface);
-    border: 1px solid var(--green-border);
-    border-radius: 16px;
-    padding: 32px;
-    width: 420px;
-    max-width: 92vw;
-    transform: scale(0.95);
-    transition: transform 0.2s;
-    box-shadow: 0 0 60px rgba(0,208,132,0.1);
-  }
+  .modal { background: var(--surface); border: 1px solid var(--green-border); border-radius: 16px; padding: 32px; width: 420px; max-width: 92vw; transform: scale(0.95); transition: transform 0.2s; box-shadow: 0 0 60px rgba(0,208,132,0.1); }
   .overlay.show .modal { transform: scale(1); }
   .modal-icon { font-size: 2rem; margin-bottom: 14px; }
-  .modal-title {
-    font-size: 1.1rem;
-    font-weight: 800;
-    margin-bottom: 8px;
-    letter-spacing: -0.01em;
-  }
-  .modal-sub {
-    font-size: 0.83rem;
-    color: var(--text-dim);
-    line-height: 1.6;
-    margin-bottom: 24px;
-  }
+  .modal-title { font-size: 1.1rem; font-weight: 800; margin-bottom: 8px; }
+  .modal-sub { font-size: 0.83rem; color: var(--text-dim); line-height: 1.6; margin-bottom: 24px; }
   .modal-actions { display:flex; gap:10px; }
-  .btn-confirm {
-    flex:1; padding:12px;
-    background: var(--green);
-    border: none;
-    border-radius: 9px;
-    color: #000;
-    font-family: 'Inter', sans-serif;
-    font-weight: 800;
-    font-size: 0.88rem;
-    cursor: pointer;
-    letter-spacing: 0.02em;
-    transition: opacity 0.15s;
-  }
+  .btn-confirm { flex:1; padding:12px; background: var(--green); border: none; border-radius: 9px; color: #000; font-family: 'Inter', sans-serif; font-weight: 800; font-size: 0.88rem; cursor: pointer; transition: opacity 0.15s; }
   .btn-confirm:hover { opacity:0.85; }
-  .btn-cancel {
-    padding: 12px 20px;
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    border-radius: 9px;
-    color: var(--text-muted);
-    font-family: 'Inter', sans-serif;
-    font-size: 0.88rem;
-    cursor: pointer;
-    transition: all 0.15s;
-  }
+  .btn-cancel { padding: 12px 20px; background: var(--surface2); border: 1px solid var(--border); border-radius: 9px; color: var(--text-muted); font-family: 'Inter', sans-serif; font-size: 0.88rem; cursor: pointer; transition: all 0.15s; }
   .btn-cancel:hover { border-color:#444; color:var(--text); }
 
-  /* ── TOAST ── */
-  .toast {
-    position: fixed;
-    bottom: 28px; right: 28px;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 14px 20px;
-    font-size: 0.83rem;
-    font-weight: 500;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    opacity: 0;
-    transform: translateY(20px);
-    transition: all 0.3s cubic-bezier(0.34,1.56,0.64,1);
-    z-index: 300;
-    max-width: 320px;
-    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
-  }
+  .toast { position: fixed; bottom: 28px; right: 28px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px 20px; font-size: 0.83rem; font-weight: 500; display: flex; align-items: center; gap: 10px; opacity: 0; transform: translateY(20px); transition: all 0.3s cubic-bezier(0.34,1.56,0.64,1); z-index: 300; max-width: 320px; box-shadow: 0 8px 32px rgba(0,0,0,0.4); }
   .toast.show { opacity:1; transform:translateY(0); }
   .toast.success { border-color: var(--green-border); }
   .toast.error   { border-color: rgba(255,71,87,0.4); }
 
   @keyframes spin { to { transform: rotate(360deg); } }
-  .spinner {
-    width:13px; height:13px;
-    border: 2px solid rgba(0,208,132,0.25);
-    border-top-color: var(--green);
-    border-radius: 50%;
-    animation: spin 0.7s linear infinite;
-    display: inline-block;
-  }
+  .spinner { width:13px; height:13px; border: 2px solid rgba(0,208,132,0.25); border-top-color: var(--green); border-radius: 50%; animation: spin 0.7s linear infinite; display: inline-block; }
 
   @media (max-width:768px) {
-    header { padding: 0 20px; }
-    .header-label { display:none; }
+    header { padding: 0 20px; } .header-label { display:none; }
     main { padding: 24px 20px; }
-    .stats-bar { grid-template-columns: repeat(2,1fr); }
-    .stat { padding: 20px 24px; }
-    .stat-number { font-size: 2.2rem; }
+    .stats-bar { grid-template-columns: repeat(3,1fr); }
+    .stat { padding: 16px 18px; } .stat-number { font-size: 2rem; }
   }
 </style>
 </head>
 <body>
 
-<!-- HEADER -->
 <header>
-  <div class="logo">
-    <img src="/static/logo.png" alt="MindMed">
-  </div>
+  <div class="logo"><img src="/static/logo.png" alt="MindMed"></div>
   <div class="header-label">Painel</div>
+  <div class="badge-live"><div class="dot-pulse"></div>Ao vivo</div>
 </header>
 
-<!-- STATS BAR -->
 <div class="stats-bar">
+  <div class="stat">
+    <div class="stat-number" style="color:var(--orange)" id="s-aguardando">—</div>
+    <div class="stat-label">Aguardando</div>
+    <div class="stat-sub">Liberação pendente</div>
+  </div>
   <div class="stat">
     <div class="stat-number" id="s-pausa">—</div>
     <div class="stat-label">Em pausa</div>
@@ -567,7 +234,6 @@
   </div>
 </div>
 
-<!-- MAIN -->
 <main>
   <div class="page-title">
     <h1>Atendimentos <span>em tempo real</span></h1>
@@ -576,7 +242,11 @@
 
   <div class="toolbar">
     <div class="tabs">
-      <button class="tab active" onclick="filtrar('todos',this)">
+      <button class="tab tab-aguardando active" onclick="filtrar('AGUARDANDO_LIBERACAO',this)">
+        <span class="tab-dot" style="background:var(--orange)"></span>
+        Aguardando <span class="tab-count" id="tc-aguardando">0</span>
+      </button>
+      <button class="tab" onclick="filtrar('todos',this)">
         <span class="tab-dot" style="background:#4a6080"></span>
         Todos <span class="tab-count" id="tc-todos">0</span>
       </button>
@@ -601,12 +271,11 @@
   <div class="cards-grid" id="grid"></div>
 </main>
 
-<!-- MODAL -->
 <div class="overlay" id="modal">
   <div class="modal">
     <div class="modal-icon" id="modal-icon">▶</div>
-    <div class="modal-title" id="modal-title">Retomar atendimento?</div>
-    <div class="modal-sub" id="modal-sub">O agente voltará a responder este contato.</div>
+    <div class="modal-title" id="modal-title">Confirmar ação?</div>
+    <div class="modal-sub" id="modal-sub"></div>
     <div class="modal-actions">
       <button class="btn-cancel" onclick="fecharModal()">Cancelar</button>
       <button class="btn-confirm" id="modal-btn">Confirmar</button>
@@ -614,26 +283,23 @@
   </div>
 </div>
 
-<!-- TOAST -->
 <div class="toast" id="toast">
   <span id="toast-icon"></span>
   <span id="toast-msg"></span>
 </div>
 
 <script>
-  const API_URL      = 'http://localhost:8000';
   const SUPABASE_URL = 'https://ilfbfkjrqltdjehgpzmv.supabase.co';
   const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlsZmJma2pycWx0ZGplaGdwem12Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE3NzE1NTYsImV4cCI6MjA4NzM0NzU1Nn0.EkCIwO8cPBRaaGacCCYlA9eP6h0mzzuTNPviuXTs868';
+  const RAILWAY_URL  = 'https://web-production-18db.up.railway.app';
 
   let leads = [];
-  let filtroAtual = 'todos';
+  let filtroAtual = 'AGUARDANDO_LIBERACAO';
 
   async function carregarDados() {
     const icon = document.getElementById('refresh-icon');
     icon.innerHTML = '<span class="spinner"></span>';
     try {
-      // ✅ CORRIGIDO: busca direto de 'leads' em vez de 'crm_leads'
-      // A view crm_leads não expunha a coluna maior_dificuldade
       const r = await fetch(
         SUPABASE_URL + '/rest/v1/leads?select=*&order=updated_at.desc',
         { headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY } }
@@ -641,26 +307,19 @@
       if (!r.ok) throw new Error();
       leads = await r.json();
     } catch {
-      leads = exemploLeads();
+      leads = [];
     }
     atualizarStats();
     renderCards(filtroAtual);
     icon.innerHTML = '↻';
   }
 
-  function exemploLeads() {
-    return [
-      { telefone:'553284643903', nome:'Pedro Alves', fase:'internato', tag_crm:'🔴 FECHAR', status_conversa:'PASSAR_HUMANO', maior_dificuldade:'Memorizar conteúdo', presta_residencia_esse_ano:true, updated_at: new Date().toISOString() },
-      { telefone:'5511987651234', nome:'Ana Costa', fase:'ciclo_clinico', tag_crm:'🟢 TRIAL_ATIVO', status_conversa:'ACESSO_LIBERADO', maior_dificuldade:'Clínica Médica', presta_residencia_esse_ano:false, updated_at: new Date(Date.now()-3600000).toISOString() },
-      { telefone:'5521976543210', nome:'Carlos Lima', fase:'formado', tag_crm:'🔵 EM_ATENDIMENTO', status_conversa:'CONTINUAR', maior_dificuldade:'Pediatria', presta_residencia_esse_ano:true, updated_at: new Date(Date.now()-7200000).toISOString() },
-      { telefone:'5531988887777', nome:'Mariana Souza', fase:'internato', tag_crm:'🔴 FECHAR', status_conversa:'PASSAR_HUMANO', maior_dificuldade:'Cirurgia', presta_residencia_esse_ano:true, updated_at: new Date(Date.now()-1800000).toISOString() },
-    ];
-  }
-
   function atualizarStats() {
+    const aguardando = leads.filter(l => l.status_conversa === 'AGUARDANDO_LIBERACAO').length;
     const pausa  = leads.filter(l => l.status_conversa === 'PASSAR_HUMANO').length;
     const trial  = leads.filter(l => ['ACESSO_LIBERADO','AGUARDAR_FOLLOW_UP'].includes(l.status_conversa)).length;
     const fechar = leads.filter(l => l.tag_crm && l.tag_crm.includes('FECHAR')).length;
+    document.getElementById('s-aguardando').textContent = aguardando;
     document.getElementById('s-pausa').textContent  = pausa;
     document.getElementById('s-trial').textContent  = trial;
     document.getElementById('s-fechar').textContent = fechar;
@@ -675,6 +334,7 @@
   }
 
   function atualizarContadores() {
+    document.getElementById('tc-aguardando').textContent = leads.filter(l=>l.status_conversa==='AGUARDANDO_LIBERACAO').length;
     document.getElementById('tc-todos').textContent  = leads.length;
     document.getElementById('tc-pausa').textContent  = leads.filter(l=>l.status_conversa==='PASSAR_HUMANO').length;
     document.getElementById('tc-trial').textContent  = leads.filter(l=>['ACESSO_LIBERADO','AGUARDAR_FOLLOW_UP'].includes(l.status_conversa)).length;
@@ -687,7 +347,15 @@
     const lista = filtro === 'todos' ? leads : leads.filter(l => l.status_conversa === filtro);
 
     if (!lista.length) {
-      grid.innerHTML = '<div class="empty"><div class="empty-icon">✅</div><div class="empty-title">Nenhum atendimento aqui</div><div class="empty-sub">Tudo em ordem por enquanto.</div></div>';
+      const msgs = {
+        'AGUARDANDO_LIBERACAO': ['⏳','Nenhum contato aguardando','Tudo liberado por enquanto.'],
+        'PASSAR_HUMANO':        ['✅','Nenhum em pausa','Nenhuma conversa aguardando o Davi.'],
+        'ACESSO_LIBERADO':      ['🎓','Nenhum em trial','Nenhum aluno testando agora.'],
+        'CONTINUAR':            ['🤖','Nenhum em atendimento','Agente sem conversas ativas.'],
+        'todos':                ['✅','Nenhum atendimento','Tudo em ordem por enquanto.'],
+      };
+      const m = msgs[filtro] || msgs['todos'];
+      grid.innerHTML = `<div class="empty"><div class="empty-icon">${m[0]}</div><div class="empty-title">${m[1]}</div><div class="empty-sub">${m[2]}</div></div>`;
       return;
     }
     grid.innerHTML = lista.map((l, i) => cardHTML(l, i + 1)).join('');
@@ -700,76 +368,88 @@
     const tag    = l.tag_crm || '';
     const tempo  = fmtTempo(l.updated_at);
     const fase   = fmtFase(l.fase);
+    const tel    = l.telefone;
+
+    const ehAguardando = status === 'AGUARDANDO_LIBERACAO';
 
     let cardCls = 'active', chipCls = 'chip-active', chipLabel = 'Em andamento';
-    if (status === 'PASSAR_HUMANO')                                    { cardCls='paused'; chipCls='chip-paused'; chipLabel='Em pausa'; }
-    else if (['ACESSO_LIBERADO','AGUARDAR_FOLLOW_UP'].includes(status)){ cardCls='trial';  chipCls='chip-trial';  chipLabel='Trial ativo'; }
-    else if (tag.includes('FECHAR'))                                   { cardCls='fechar'; chipCls='chip-fechar'; chipLabel='Fechar'; }
-    else if (status.startsWith('FINALIZADO'))                          { cardCls='';       chipCls='chip-done';   chipLabel='Finalizado'; }
+    if (ehAguardando)                                                    { cardCls='aguardando'; chipCls='chip-aguardando'; chipLabel='Aguardando'; }
+    else if (status === 'PASSAR_HUMANO')                                 { cardCls='paused';     chipCls='chip-paused';     chipLabel='Em pausa'; }
+    else if (['ACESSO_LIBERADO','AGUARDAR_FOLLOW_UP'].includes(status))  { cardCls='trial';      chipCls='chip-trial';      chipLabel='Trial ativo'; }
+    else if (tag.includes('FECHAR'))                                     { cardCls='fechar';     chipCls='chip-fechar';     chipLabel='Fechar'; }
+    else if (status.startsWith('FINALIZADO'))                            { cardCls='';           chipCls='chip-done';       chipLabel='Finalizado'; }
 
     const podRetomar = status === 'PASSAR_HUMANO';
-    const tel = l.telefone;
+
+    // Primeira mensagem — exibe só para aguardando
+    const primeiraMsgHTML = ehAguardando && l.primeira_mensagem ? `
+      <div class="primeira-msg">
+        <div class="primeira-msg-label">💬 Primeira mensagem</div>
+        ${escapeHtml(l.primeira_mensagem.substring(0, 180))}${l.primeira_mensagem.length > 180 ? '…' : ''}
+      </div>` : '';
+
+    // Botões dependem do status
+    let botoesHTML = '';
+    if (ehAguardando) {
+      botoesHTML = `
+        <button class="btn-liberar" onclick="confirmar('liberar','${tel}','${nome}')">🤖 Liberar Bia</button>
+        <button class="btn-sec" title="Atender pessoalmente" onclick="confirmar('atender','${tel}','${nome}')">👤</button>
+        <button class="btn-del" title="Excluir" onclick="confirmar('excluir','${tel}','${nome}')">🗑</button>`;
+    } else {
+      botoesHTML = `
+        <button class="btn-main" ${podRetomar?'':'disabled'} onclick="confirmar('retomar','${tel}','${nome}')">▶ Retomar agente</button>
+        <button class="btn-sec" title="Finalizar conversa" onclick="confirmar('finalizar','${tel}','${nome}')">✕</button>
+        <button class="btn-del" title="Excluir lead" onclick="confirmar('excluir','${tel}','${nome}')">🗑</button>`;
+    }
 
     return `
     <div class="card ${cardCls}" id="card-${tel}">
       <div class="card-num">${String(idx).padStart(2,'0')}</div>
       <div class="card-header">
-        <div class="avatar">${ini}</div>
+        <div class="avatar ${ehAguardando?'orange':''}">${ini}</div>
         <span class="status-chip ${chipCls}">${chipLabel}</span>
       </div>
       <div class="card-name">${nome}</div>
       <div class="card-phone">+${tel}</div>
+      ${primeiraMsgHTML}
       <div class="card-tags">
         ${fase ? '<span class="tag">📚 '+fase+'</span>' : ''}
         ${l.maior_dificuldade ? '<span class="tag">⚡ '+l.maior_dificuldade+'</span>' : ''}
         ${l.presta_residencia_esse_ano ? '<span class="tag">📖 Prova esse ano</span>' : ''}
       </div>
-      <div class="card-time">🕐 Atualizado ${tempo}</div>
-      <div class="card-actions">
-        <button class="btn-main" ${podRetomar?'':'disabled'} onclick="confirmar('retomar','${tel}','${nome}')">
-          ▶ Retomar agente
-        </button>
-        <button class="btn-sec" title="Finalizar conversa" onclick="confirmar('finalizar','${tel}','${nome}')">✕</button>
-        <button class="btn-del" title="Excluir lead permanentemente" onclick="confirmar('excluir','${tel}','${nome}')">🗑</button>
-      </div>
+      <div class="card-time">🕐 ${tempo}</div>
+      <div class="card-actions">${botoesHTML}</div>
     </div>`;
+  }
+
+  function escapeHtml(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 
   let acao = null;
 
   function confirmar(tipo, tel, nome) {
     acao = { tipo, tel, nome };
-
-    if (tipo === 'retomar') {
-      document.getElementById('modal-icon').textContent  = '▶';
-      document.getElementById('modal-title').textContent = 'Retomar atendimento?';
-      document.getElementById('modal-sub').textContent   = 'O agente voltará a responder ' + nome + ' automaticamente.';
-      document.getElementById('modal-btn').textContent   = '▶ Retomar agente';
-      document.getElementById('modal-btn').style.background = 'var(--green)';
-      document.getElementById('modal-btn').style.color      = '#000';
-    } else if (tipo === 'finalizar') {
-      document.getElementById('modal-icon').textContent  = '✕';
-      document.getElementById('modal-title').textContent = 'Finalizar conversa?';
-      document.getElementById('modal-sub').textContent   = 'A conversa com ' + nome + ' será encerrada. O agente não responderá mais.';
-      document.getElementById('modal-btn').textContent   = 'Finalizar';
-      document.getElementById('modal-btn').style.background = 'var(--red)';
-      document.getElementById('modal-btn').style.color      = '#fff';
-    } else if (tipo === 'excluir') {
-      document.getElementById('modal-icon').textContent  = '🗑';
-      document.getElementById('modal-title').textContent = 'Excluir lead permanentemente?';
-      document.getElementById('modal-sub').textContent   = 'Todos os dados de ' + nome + ' serão removidos do Supabase (leads e conversas). Esta ação não pode ser desfeita.';
-      document.getElementById('modal-btn').textContent   = '🗑 Excluir permanentemente';
-      document.getElementById('modal-btn').style.background = 'var(--red)';
-      document.getElementById('modal-btn').style.color      = '#fff';
-    }
-
-    document.getElementById('modal-btn').onclick = executarAcao;
+    const cfg = {
+      liberar:   ['🤖','Liberar Bia para atender?',   `A Bia vai assumir o atendimento de ${nome} automaticamente.`, '🤖 Liberar Bia', 'var(--orange)', '#000'],
+      atender:   ['👤','Atender pessoalmente?',         `${nome} ficará em pausa e o Davi assume o atendimento.`,      '👤 Atender',      'var(--green)',  '#000'],
+      retomar:   ['▶', 'Retomar atendimento?',          `O agente voltará a responder ${nome} automaticamente.`,       '▶ Retomar',       'var(--green)',  '#000'],
+      finalizar: ['✕', 'Finalizar conversa?',           `A conversa com ${nome} será encerrada.`,                       'Finalizar',       'var(--red)',    '#fff'],
+      excluir:   ['🗑','Excluir lead permanentemente?', `Todos os dados de ${nome} serão removidos. Irreversível.`,     '🗑 Excluir',       'var(--red)',    '#fff'],
+    };
+    const c = cfg[tipo];
+    document.getElementById('modal-icon').textContent  = c[0];
+    document.getElementById('modal-title').textContent = c[1];
+    document.getElementById('modal-sub').textContent   = c[2];
+    const btn = document.getElementById('modal-btn');
+    btn.textContent = c[3];
+    btn.style.background = c[4];
+    btn.style.color = c[5];
+    btn.onclick = executarAcao;
     document.getElementById('modal').classList.add('show');
   }
 
-  function fecharModal() {
-    document.getElementById('modal').classList.remove('show');
-  }
+  function fecharModal() { document.getElementById('modal').classList.remove('show'); }
 
   async function executarAcao() {
     fecharModal();
@@ -777,85 +457,63 @@
     const { tipo, tel, nome } = acao;
 
     const headers = {
-      apikey: SUPABASE_KEY,
-      Authorization: 'Bearer ' + SUPABASE_KEY,
-      'Content-Type': 'application/json',
-      Prefer: 'return=minimal'
+      apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY,
+      'Content-Type': 'application/json', Prefer: 'return=minimal'
     };
 
     try {
-      if (tipo === 'retomar') {
-        const novoStatus = 'CONTINUAR';
+      if (tipo === 'liberar') {
+        // Chama endpoint do Railway para liberar a Bia
+        const r = await fetch(RAILWAY_URL + '/liberar/' + tel, { method: 'POST' });
+        if (!r.ok) throw new Error('Erro ao liberar: ' + r.status);
+        toast('success', '🤖 Bia liberada para ' + nome);
 
-        const rL = await fetch(SUPABASE_URL + '/rest/v1/leads?telefone=eq.' + tel, {
-          method: 'PATCH',
-          headers,
-          body: JSON.stringify({ status_conversa: novoStatus, updated_at: new Date().toISOString() })
+      } else if (tipo === 'atender') {
+        // Marca como PASSAR_HUMANO — Davi atende pessoalmente
+        await fetch(SUPABASE_URL + '/rest/v1/leads?telefone=eq.' + tel, {
+          method: 'PATCH', headers,
+          body: JSON.stringify({ status_conversa: 'PASSAR_HUMANO', tag_crm: '👤 DAVI_ATENDE', updated_at: new Date().toISOString() })
         });
-        if (!rL.ok) throw new Error('Erro ao atualizar leads: ' + rL.status);
-
         await fetch(SUPABASE_URL + '/rest/v1/conversas?telefone=eq.' + tel, {
-          method: 'PATCH',
-          headers,
-          body: JSON.stringify({ status_conversa: novoStatus, updated_at: new Date().toISOString() })
+          method: 'PATCH', headers,
+          body: JSON.stringify({ status_conversa: 'PASSAR_HUMANO', updated_at: new Date().toISOString() })
         });
+        toast('success', '👤 ' + nome + ' marcado para atendimento pessoal');
 
+      } else if (tipo === 'retomar') {
+        const r = await fetch(RAILWAY_URL + '/retomar/' + tel, { method: 'POST' });
+        if (!r.ok) throw new Error('Erro ao retomar: ' + r.status);
         toast('success', '✅ Agente retomado para ' + nome);
 
       } else if (tipo === 'finalizar') {
-        const novoStatus = 'FINALIZADO_SUCESSO';
-
-        const rL = await fetch(SUPABASE_URL + '/rest/v1/leads?telefone=eq.' + tel, {
-          method: 'PATCH',
-          headers,
-          body: JSON.stringify({ status_conversa: novoStatus, updated_at: new Date().toISOString() })
+        await fetch(SUPABASE_URL + '/rest/v1/leads?telefone=eq.' + tel, {
+          method: 'PATCH', headers,
+          body: JSON.stringify({ status_conversa: 'FINALIZADO_SUCESSO', updated_at: new Date().toISOString() })
         });
-        if (!rL.ok) throw new Error('Erro ao atualizar leads: ' + rL.status);
-
         await fetch(SUPABASE_URL + '/rest/v1/conversas?telefone=eq.' + tel, {
-          method: 'PATCH',
-          headers,
-          body: JSON.stringify({ status_conversa: novoStatus, updated_at: new Date().toISOString() })
+          method: 'PATCH', headers,
+          body: JSON.stringify({ status_conversa: 'FINALIZADO_SUCESSO', updated_at: new Date().toISOString() })
         });
-
         toast('success', '✅ Conversa com ' + nome + ' finalizada');
 
       } else if (tipo === 'excluir') {
-        const r1 = await fetch(SUPABASE_URL + '/rest/v1/leads?telefone=eq.' + tel, {
-          method: 'DELETE',
-          headers
-        });
-
-        const r2 = await fetch(SUPABASE_URL + '/rest/v1/conversas?telefone=eq.' + tel, {
-          method: 'DELETE',
-          headers
-        });
-
-        if (!r1.ok && r1.status !== 404) throw new Error('Erro ao excluir leads: ' + r1.status);
-        if (!r2.ok && r2.status !== 404) throw new Error('Erro ao excluir conversas: ' + r2.status);
-
+        await fetch(SUPABASE_URL + '/rest/v1/leads?telefone=eq.' + tel,    { method: 'DELETE', headers });
+        await fetch(SUPABASE_URL + '/rest/v1/conversas?telefone=eq.' + tel, { method: 'DELETE', headers });
         const cardEl = document.getElementById('card-' + tel);
         if (cardEl) {
           cardEl.style.transition = 'opacity 0.3s, transform 0.3s';
-          cardEl.style.opacity = '0';
-          cardEl.style.transform = 'scale(0.95)';
+          cardEl.style.opacity = '0'; cardEl.style.transform = 'scale(0.95)';
           setTimeout(() => cardEl.remove(), 300);
         }
-
         leads = leads.filter(l => l.telefone !== tel);
-        atualizarStats();
-        atualizarContadores();
-
-        toast('success', '🗑 Lead ' + nome + ' excluído permanentemente');
+        atualizarStats(); atualizarContadores();
+        toast('success', '🗑 Lead ' + nome + ' excluído');
         return;
       }
-
     } catch(e) {
-      console.error(e);
       toast('error', '❌ Erro: ' + (e.message || 'Tente novamente'));
       return;
     }
-
     setTimeout(carregarDados, 800);
   }
 
