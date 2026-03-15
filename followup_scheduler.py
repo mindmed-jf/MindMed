@@ -390,8 +390,16 @@ async def processar_reengajamento():
             nome       = conversa.get("nome_aluno", "")
             updated_at = conversa.get("updated_at", "")
             reengaj_n  = conversa.get("contador_reengajamento", 0) or 0
+            # Só reengaja leads que tiveram ao menos 1 troca com a Bia.
+            # Evita disparar reengajamento sobre conversas no início da qualificação
+            # (ex: Bia fez a primeira pergunta e o aluno ainda não respondeu).
+            contador_msgs = conversa.get("contador_mensagens_alex", 0) or 0
 
             if not telefone or not updated_at:
+                continue
+
+            if contador_msgs < 1:
+                log.debug(f"⏭️ Reengajamento ignorado — conversa ainda no início | {telefone}")
                 continue
 
             horas = calcular_horas_sem_resposta(updated_at)
