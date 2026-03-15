@@ -496,11 +496,15 @@ async def liberar_bia(telefone: str, background_tasks: BackgroundTasks):
         primeira_mensagem = None
         if resultado.data:
             historico = resultado.data[0].get("historico", []) or []
-            # Pega a primeira mensagem do usuário no histórico
-            for msg in historico:
-                if msg.get("role") == "user":
-                    primeira_mensagem = msg.get("content", "")
-                    break
+            # Funde todas as mensagens do usuário acumuladas enquanto aguardava liberação.
+            # Garante que a Bia receba contexto completo (ex: "Oi\nvim do sorteio\nquero testar")
+            # em vez de apenas o primeiro "Oi" — alinhado com o buffer de mensagens rápidas.
+            mensagens_usuario = [
+                m.get("content", "") for m in historico
+                if m.get("role") == "user" and m.get("content", "").strip()
+            ]
+            if mensagens_usuario:
+                primeira_mensagem = "\n".join(mensagens_usuario)
 
         # Atualiza status para CONTINUAR
         _supabase_dedup.table("conversas").update({
