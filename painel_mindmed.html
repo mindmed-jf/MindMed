@@ -164,6 +164,14 @@
   .btn-del { padding: 11px 14px; border-radius: 9px; cursor: pointer; font-family: 'Inter', sans-serif; font-size: 0.88rem; font-weight: 600; background: rgba(255,71,87,0.07); border: 1px solid rgba(255,71,87,0.25); color: var(--red); transition: all 0.15s; display: flex; align-items: center; justify-content: center; }
   .btn-del:hover { background: var(--red); color: #fff; border-color: var(--red); box-shadow: 0 4px 16px rgba(255,71,87,0.3); }
 
+  .btn-pausar {
+    padding: 11px 14px; border-radius: 9px; cursor: pointer;
+    font-family: 'Inter', sans-serif; font-size: 0.82rem; font-weight: 600;
+    background: var(--yellow-dim); border: 1px solid rgba(240,192,64,0.3);
+    color: var(--yellow); transition: all 0.15s;
+  }
+  .btn-pausar:hover { background: var(--yellow); color: #000; box-shadow: 0 4px 16px rgba(240,192,64,0.3); }
+
   .empty { grid-column: 1/-1; text-align: center; padding: 80px 20px; }
   .empty-icon { font-size: 3rem; margin-bottom: 16px; }
   .empty-title { font-size: 1.1rem; font-weight: 700; color: var(--text-dim); margin-bottom: 6px; }
@@ -395,9 +403,10 @@
         <button class="btn-sec" title="Atender pessoalmente" onclick="confirmar('atender','${tel}','${nome}')">Atender</button>
         <button class="btn-del" title="Excluir" onclick="confirmar('excluir','${tel}','${nome}')">Excluir</button>`;
     } else {
+      const podPausar = status === 'CONTINUAR';
       botoesHTML = `
         <button class="btn-main" ${podRetomar?'':'disabled'} onclick="confirmar('retomar','${tel}','${nome}')">Retomar agente</button>
-        <button class="btn-sec" title="Finalizar conversa" onclick="confirmar('finalizar','${tel}','${nome}')">Finalizar</button>
+        ${podPausar ? `<button class="btn-pausar" onclick="confirmar('pausar','${tel}','${nome}')">Pausar</button>` : `<button class="btn-sec" title="Finalizar conversa" onclick="confirmar('finalizar','${tel}','${nome}')">Finalizar</button>`}
         <button class="btn-del" title="Excluir lead" onclick="confirmar('excluir','${tel}','${nome}')">Excluir</button>`;
     }
 
@@ -432,6 +441,7 @@
     const cfg = {
       liberar:   ['','Liberar Bia para atender?',   `A Bia vai assumir o atendimento de ${nome} automaticamente.`, 'Liberar Bia', 'var(--orange)', '#000'],
       atender:   ['','Atender pessoalmente?',         `${nome} ficará em pausa e o Davi assume o atendimento.`,      'Atender',      'var(--green)',  '#000'],
+      pausar:    ['','Pausar Bia?',                   `A Bia vai parar de responder ${nome}. O Davi assume o atendimento.`, 'Pausar Bia', 'var(--yellow)', '#000'],
       retomar:   ['','Retomar atendimento?',          `O agente voltará a responder ${nome} automaticamente.`,       'Retomar',       'var(--green)',  '#000'],
       finalizar: ['','Finalizar conversa?',           `A conversa com ${nome} será encerrada.`,                       'Finalizar',       'var(--red)',    '#fff'],
       excluir:   ['','Excluir lead permanentemente?', `Todos os dados de ${nome} serão removidos. Irreversível.`,     'Excluir',       'var(--red)',    '#fff'],
@@ -477,6 +487,17 @@
           body: JSON.stringify({ status_conversa: 'PASSAR_HUMANO', updated_at: new Date().toISOString() })
         });
         toast('success', nome + ' marcado para atendimento pessoal');
+
+      } else if (tipo === 'pausar') {
+        await fetch(SUPABASE_URL + '/rest/v1/leads?telefone=eq.' + tel, {
+          method: 'PATCH', headers,
+          body: JSON.stringify({ status_conversa: 'PASSAR_HUMANO', tag_crm: 'PAUSADO', updated_at: new Date().toISOString() })
+        });
+        await fetch(SUPABASE_URL + '/rest/v1/conversas?telefone=eq.' + tel, {
+          method: 'PATCH', headers,
+          body: JSON.stringify({ status_conversa: 'PASSAR_HUMANO', updated_at: new Date().toISOString() })
+        });
+        toast('success', 'Bia pausada para ' + nome);
 
       } else if (tipo === 'retomar') {
         const r = await fetch(RAILWAY_URL + '/retomar/' + tel, { method: 'POST' });
