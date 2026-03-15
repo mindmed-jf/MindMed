@@ -172,6 +172,29 @@
   }
   .btn-pausar:hover { background: var(--yellow); color: #000; box-shadow: 0 4px 16px rgba(240,192,64,0.3); }
 
+  .btn-retry {
+    flex: 1; padding: 11px; border-radius: 9px; cursor: pointer;
+    font-family: 'Inter', sans-serif; font-size: 0.82rem; font-weight: 700;
+    display: flex; align-items: center; justify-content: center; gap: 7px;
+    transition: all 0.15s; letter-spacing: 0.02em;
+    border: 1px solid rgba(255,71,87,0.4); background: rgba(255,71,87,0.08); color: var(--red);
+  }
+  .btn-retry:hover { background: var(--red); color: #fff; box-shadow: 0 4px 20px rgba(255,71,87,0.3); }
+
+  .card.erro-liberar {
+    border-color: rgba(255,71,87,0.5);
+    box-shadow: 0 0 0 1px rgba(255,71,87,0.1), inset 0 0 30px rgba(255,71,87,0.04);
+  }
+  .card.erro-liberar::before {
+    content:''; position:absolute; top:0; left:0; right:0; height:1px;
+    background: linear-gradient(90deg, transparent, var(--red), transparent);
+  }
+  .erro-msg {
+    background: rgba(255,71,87,0.07); border: 1px solid rgba(255,71,87,0.25);
+    border-radius: 8px; padding: 9px 12px; margin: 10px 0;
+    font-size: 0.75rem; color: var(--red); line-height: 1.5;
+  }
+
   .empty { grid-column: 1/-1; text-align: center; padding: 80px 20px; }
   .empty-icon { font-size: 3rem; margin-bottom: 16px; }
   .empty-title { font-size: 1.1rem; font-weight: 700; color: var(--text-dim); margin-bottom: 6px; }
@@ -434,6 +457,58 @@
     return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 
+  // Rastreia cards com falha de liberação para mostrar botão Retry
+  const errosLiberar = {};
+
+  function marcarErroCard(tel, nome) {
+    errosLiberar[tel] = true;
+    const card = document.getElementById('card-' + tel);
+    if (!card) return;
+    card.classList.add('erro-liberar');
+    // Injeta mensagem de erro e botão retry nos botões
+    const actions = card.querySelector('.card-actions');
+    if (actions) {
+      actions.innerHTML = `
+        <button class="btn-retry" onclick="retryLiberar('${tel}','${nome}')">↻ Tentar novamente</button>
+        <button class="btn-sec" title="Atender pessoalmente" onclick="confirmar('atender','${tel}','${nome}')">Atender</button>
+        <button class="btn-del" title="Excluir" onclick="confirmar('excluir','${tel}','${nome}')">Excluir</button>`;
+    }
+    // Injeta aviso de erro acima dos botões
+    let erroEl = card.querySelector('.erro-msg');
+    if (!erroEl) {
+      erroEl = document.createElement('div');
+      erroEl.className = 'erro-msg';
+      erroEl.textContent = 'Falha ao liberar. O servidor pode estar lento — tente novamente.';
+      const actions2 = card.querySelector('.card-actions');
+      if (actions2) card.insertBefore(erroEl, actions2);
+    }
+  }
+
+  async function retryLiberar(tel, nome) {
+    // Remove estado de erro visual imediatamente
+    const card = document.getElementById('card-' + tel);
+    if (card) card.classList.remove('erro-liberar');
+    delete errosLiberar[tel];
+
+    // Restaura botões originais com spinner temporário
+    const actions = card && card.querySelector('.card-actions');
+    if (actions) {
+      actions.innerHTML = `<button class="btn-liberar" disabled style="opacity:0.5"><span class="spinner"></span> Liberando...</button>`;
+    }
+    const erroEl = card && card.querySelector('.erro-msg');
+    if (erroEl) erroEl.remove();
+
+    try {
+      const r = await fetch(RAILWAY_URL + '/liberar/' + tel, { method: 'POST' });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      toast('success', 'Bia liberada para ' + nome);
+      setTimeout(carregarDados, 800);
+    } catch(e) {
+      toast('error', 'Falha novamente: ' + (e.message || 'tente mais tarde'));
+      marcarErroCard(tel, nome);
+    }
+  }
+
   let acao = null;
 
   function confirmar(tipo, tel, nome) {
@@ -471,10 +546,22 @@
 
     try {
       if (tipo === 'liberar') {
-        // Chama endpoint do Railway para liberar a Bia
-        const r = await fetch(RAILWAY_URL + '/liberar/' + tel, { method: 'POST' });
-        if (!r.ok) throw new Error('Erro ao liberar: ' + r.status);
-        toast('success', 'Bia liberada para ' + nome);
+        // Mostra spinner no card enquanto processa
+        const cardEl = document.getElementById('card-' + tel);
+        const actionsEl = cardEl && cardEl.querySelector('.card-actions');
+        if (actionsEl) {
+          actionsEl.innerHTML = `<button class="btn-liberar" disabled style="opacity:0.5"><span class="spinner"></span> Liberando...</button>`;
+        }
+        try {
+          const r = await fetch(RAILWAY_URL + '/liberar/' + tel, { method: 'POST' });
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          toast('success', 'Bia liberada para ' + nome);
+          setTimeout(carregarDados, 800);
+        } catch(e) {
+          toast('error', 'Falha ao liberar — use Tentar novamente no card');
+          marcarErroCard(tel, nome);
+        }
+        return; // sai antes do setTimeout do final
 
       } else if (tipo === 'atender') {
         // Marca como PASSAR_HUMANO — Davi atende pessoalmente
