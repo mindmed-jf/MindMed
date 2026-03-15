@@ -122,15 +122,11 @@ def mensagem_followup_1(nome: str) -> str:
     return f"E aí, {n}? 👋\nConseguiu explorar a plataforma? Ficou com alguma dúvida?"
 
 def mensagem_followup_2(nome: str) -> str:
-    # CORREÇÃO #10 — antes dizia "tá acabando em breve", mas o acesso de 48h
-    # já expirou nesse ponto. Mensagem ajustada para refletir a realidade
-    # e ainda abrir porta para continuar com um plano pago.
-    """48h — acesso expirado, pergunta o que achou e abre para continuar."""
+    """48h sem resposta após cadastro enviado — retoma interesse."""
     prefixo = f"{nome}, " if nome else ""
     return (
-        f"{prefixo}seu acesso de teste expirou! ⏰\n"
-        f"Você conseguiu explorar a plataforma? O que achou dos flashcards?\n"
-        f"Se quiser continuar, é só me falar que a gente vê o melhor plano pra você!"
+        f"{prefixo}tudo bem? 👋\n"
+        f"Você chegou a se cadastrar na plataforma? Se ainda não testou, ainda dá tempo! É só me avisar."
     )
 
 def mensagem_followup_3(nome: str) -> str:
@@ -155,7 +151,7 @@ def mensagem_reengaj_1(nome: str) -> str:
 def mensagem_reengaj_2(nome: str) -> str:
     prefixo = f"{nome}, " if nome else ""
     return (
-        f"{prefixo}que tal testar a plataforma por 48h de graça? Sem precisar de cartão 😄\n"
+        f"{prefixo}que tal testar a plataforma por 7 dias de graça? Sem precisar de cartão 😄\n"
         f"Só me avisa que libero seu acesso!"
     )
 
@@ -302,11 +298,10 @@ async def processar_followups():
             supabase.table("conversas")
             .select("*")
             .in_("status_conversa", [
-                "ACESSO_LIBERADO",
                 "AGUARDAR_FOLLOW_UP",
                 "CADASTRO_ENVIADO",
                 "FINALIZADO_ERRO"
-                # AGUARDANDO_LIBERACAO excluído — Davi ainda não liberou o contato
+                # ACESSO_LIBERADO removido — Bia pausada durante trial, Davi atende manualmente
             ])
             .execute()
         )
