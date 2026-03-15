@@ -403,7 +403,7 @@
         <button class="btn-sec" title="Atender pessoalmente" onclick="confirmar('atender','${tel}','${nome}')">Atender</button>
         <button class="btn-del" title="Excluir" onclick="confirmar('excluir','${tel}','${nome}')">Excluir</button>`;
     } else {
-      const podPausar = status === 'CONTINUAR';
+      const podPausar = ['CONTINUAR', 'ACESSO_LIBERADO', 'AGUARDAR_FOLLOW_UP', 'CADASTRO_ENVIADO'].includes(status);
       botoesHTML = `
         <button class="btn-main" ${podRetomar?'':'disabled'} onclick="confirmar('retomar','${tel}','${nome}')">Retomar agente</button>
         ${podPausar ? `<button class="btn-pausar" onclick="confirmar('pausar','${tel}','${nome}')">Pausar</button>` : `<button class="btn-sec" title="Finalizar conversa" onclick="confirmar('finalizar','${tel}','${nome}')">Finalizar</button>`}
