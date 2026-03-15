@@ -123,7 +123,7 @@ FERRAMENTAS = [
             "name": "registrar_acesso_trial",
             "description": (
                 "Registra que o aluno se cadastrou e atualiza o banco para liberar "
-                "o acesso de 48h na plataforma. "
+                "o acesso de 7 dias na plataforma. "
                 "Use APÓS o aluno confirmar que se cadastrou em "
                 "https://app.mindmedicina.com/app/cadastro. "
                 "ATENÇÃO: esta função apenas atualiza o banco. "
@@ -395,7 +395,7 @@ def notificar_davi_whatsapp(
             acao = "⚡ *AÇÃO:* Assuma a conversa e feche a venda agora!"
     elif status == "ACESSO_LIBERADO":
         emoji = "🟢"; titulo = "NOVO TRIAL — LIBERAR ACESSO AGORA"
-        acao = "⚡ *AÇÃO:* Acesse app.mindmedicina.com e libere o trial de 48h manualmente."
+        acao = "⚡ *AÇÃO:* Acesse app.mindmedicina.com e libere o trial de 7 dias manualmente."
     elif status == "CADASTRO_ENVIADO":
         emoji = "🔵"; titulo = "ALUNO SE CADASTROU — AGUARDANDO TRIAL"
         acao = None
