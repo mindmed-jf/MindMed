@@ -352,7 +352,7 @@ Planner Inteligente: mostra o que revisar hoje e nos próximos 7 dias. Estima te
 
 Fontes: UpToDate, diretrizes brasileiras (SBEM, SBC, SBP), questões dos últimos 10 anos, ATLS, ACLS. Atualização em menos de 1 mês quando diretrizes mudam.
 
-Criar próprios flashcards: não — todos os cards são criados pela equipe.
+Criar próprios flashcards: não todos os cards são criados pela equipe.
 
 Tutorial da plataforma: https://youtu.be/vLgAbOlTDhc
 
