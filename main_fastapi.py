@@ -77,7 +77,7 @@ _dedup_cache_local: dict = {}   # {chave_md5: timestamp_expiracao}
 _locks_por_telefone: dict = {}        # {telefone: asyncio.Lock}
 _buffer_mensagens: dict = {}          # {telefone: [{"texto": ..., "ts": ...}]}
 _buffer_lock = asyncio.Lock()         # protege acesso ao buffer
-BUFFER_JANELA_SEGUNDOS = 3.0          # aguarda 3s por mais mensagens antes de processar
+BUFFER_JANELA_SEGUNDOS = float(os.getenv("BUFFER_JANELA_SEGUNDOS", "8.0"))          # aguarda 3s por mais mensagens antes de processar
 
 
 @app.on_event("startup")
